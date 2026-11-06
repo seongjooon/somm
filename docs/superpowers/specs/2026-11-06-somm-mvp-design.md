@@ -71,6 +71,8 @@ Claude Code·Codex 사용자가 흩어진 스킬을 한곳에서 찾고, **설�
 근거: `docs/experiments/2026-11-06-isolation.md`
 - **Claude Subscription:** `HOME`과 `CLAUDE_CONFIG_DIR`은 바꾸지 않는다. 둘 중 하나라도 바꾸면 키체인 로그인을 잃는다(C1, C2). 대신 `--setting-sources project,local --strict-mcp-config --no-session-persistence`를 붙인다(C3). 이 조합은 로그인을 유지하면서 사용자 스킬, 플러그인, MCP, 에이전트, 훅, `~/.claude/CLAUDE.md`를 모두 뺀다. 남는 것은 내장 스킬과 `@builtin` 플러그인뿐이며, A와 B에 똑같이 들어간다.
 - **Codex Subscription:** `HOME=<run tmp>`로 바꾸고 `CODEX_HOME`은 원래 값을 유지한다(인증 `auth.json` 위치). 여기에 `--ephemeral --ignore-user-config`를 붙인다. 이 조합은 로그인을 유지하면서 `~/.agents/skills`와 플러그인 스킬을 뺀다(X1). **잔여:** `$CODEX_HOME/skills`(`.system` 포함)와 `$CODEX_HOME/AGENTS.md`는 계속 로드된다. 로그인 파일을 복사하거나 링크하면 3번 원칙에 어긋나므로 이 잔여는 받아들인다. 양쪽 arm에 같으므로 5.3의 "공통"으로 표시한다. `CODEX_HOME` 폴더가 없으면 codex가 즉시 실패한다.
+- **복사본의 git 사용자 설정 [결정]:** Codex는 `HOME`이 임시 폴더라 사용자 `~/.gitconfig`가 없다. 그래서 somm은 복사본 안의 모든 git 작업(기준 커밋, 에이전트 실행)에 `GIT_AUTHOR_NAME`/`GIT_AUTHOR_EMAIL`/`GIT_COMMITTER_NAME`/`GIT_COMMITTER_EMAIL`을 테스트용 값(`somm`, `somm@localhost`)으로 주입한다. A와 B 양쪽에, Claude와 Codex 모두에 같은 값을 쓴다.
+- **실행 전 로그인 확인 [결정]:** 에이전트 어댑터는 실행 전에 `claude auth status --json`과 `codex login status`로 로그인을 반드시 확인한다(6절). 미로그인이면 에이전트를 실행하지 않는다.
 - **알려진 한계:** 두 CLI 모두 자기 상태 파일을 실제 설정 폴더에 쓴다. Claude는 `~/.claude.json`과 `plugins/store`에, Codex는 `~/.codex`의 로그 DB와 캐시에 쓴다. somm이 쓰는 것은 없다.
 - **Isolated [미검증]:** Claude `--bare`는 키체인을 읽지 않지만 **프로젝트 스킬도 로드하지 않았다**(CA). 그래서 B arm에 대상 스킬이 들어가지 않는다. 대안은 Subscription과 같은 플래그에 `ANTHROPIC_API_KEY`를 주는 것이다. 이때 init 이벤트의 `apiKeySource`가 키를 가리키는지 T10에서 사용자 키로 확인한다. Codex는 임시 `HOME`, 임시 `CODEX_HOME`(폴더를 미리 만든다), `CODEX_API_KEY`를 쓴다(미검증).
 
@@ -83,6 +85,9 @@ Claude Code·Codex 사용자가 흩어진 스킬을 한곳에서 찾고, **설�
   - **Clean:** A에 대상 스킬이 없고, A와 B의 차이가 대상 스킬뿐이다.
   - **Contaminated:** 위 조건이 깨졌다. 무엇이 섞였는지 목록을 함께 보여 준다.
 - 사용자 전역 스킬이 A와 B 양쪽에 똑같이 들어간 경우는 "Clean, 공통 스킬 n개 로드됨"으로 표시한다.
+- **공통 잔여 [결정]:** somm이 넣지 않았는데 양쪽 arm에 보이는 스킬을 "공통 잔여"라 한다. 대상 스킬을 B에 넣기 전에 복사본(`base`)에서 열거한다. Claude는 복사본의 `.claude/skills/*`(사용자 프로젝트 스킬)를, Codex는 복사본의 `.agents/skills/*`와 `$CODEX_HOME/skills/*`(`.system` 포함, 위 열거 규칙)를 센다.
+  - 결과 화면과 CLI `--json`에는 공통 잔여 목록(개수와 이름)을 **항상** 보여 준다. 0개여도 "0"으로 표시한다.
+  - 대상 스킬 이름이 공통 잔여에 있으면 A에도 대상 스킬이 보이므로 A/B가 무의미하다. 에이전트를 실행하기 전에 감지해서 멈추고(구독 사용량을 쓰지 않는다), 어느 위치에 있는지와 함께 "삭제하거나 이름을 바꾼 뒤 다시 시도" 경고를 보여 준다. 판정은 Contaminated다.
 
 ### 5.4 허니팟 [T1 확정: 2안 공통 + Codex만 1안 추가]
 - **1안 (`HOME` 교체가 되는 경우):** 임시 `HOME`에 가짜 `.ssh/id_rsa`, `.aws/credentials`, 토큰 파일을 둔다.
