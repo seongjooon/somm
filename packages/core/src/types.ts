@@ -11,7 +11,14 @@ export interface SkillMeta {
   stars?: number; installs?: number; snapshots: Snapshot[];
   agents: AgentId[]; license?: string; category?: string; contentHash?: string;
 }
-export interface SkillFile { path: string; contents: string }
+export function skillText(contents: string | Uint8Array): string | undefined {
+  if (typeof contents === 'string') return contents;
+  try {
+    const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(contents);
+    return text.includes('\0') ? undefined : text;
+  } catch { return undefined; }
+}
+export interface SkillFile { path: string; contents: string | Uint8Array }
 export interface SkillTraits { hasScripts: boolean; hasHooks: boolean; hasMcp: boolean; commands: string[] }
 export type Severity = 'low' | 'medium' | 'high' | 'critical';
 export interface Finding { ruleId: string; severity: Severity; file: string; line: number; message: string }

@@ -78,7 +78,8 @@ export function installation(p: Platform, id: AgentId) {
         for (const file of skill.files) {
           const path = join(staging, file.path);
           await p.fs.mkdirp(parent(path));
-          await p.fs.writeText(path, file.contents);
+          if (typeof file.contents === 'string') await p.fs.writeText(path, file.contents);
+          else await p.fs.writeBytes(path, file.contents);
         }
         await p.fs.writeText(join(staging, '.somm.json'), JSON.stringify({ source: skill.source, hash: await hashFiles(skill.files), installedAt: new Date().toISOString() }));
       }

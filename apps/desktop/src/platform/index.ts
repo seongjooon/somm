@@ -4,6 +4,8 @@ import Database from '@tauri-apps/plugin-sql';
 import { migrate, type Db, type Fs, type Platform } from '@somm/core';
 import { tauriProc } from './proc';
 const tauriFs: Fs = {
+  readBytes: p => fs.readFile(p),
+  writeBytes: (p, bytes) => fs.writeFile(p, bytes),
   async exists(p) { try { await fs.lstat(p); return true; } catch (error) {
     if (typeof error === 'string' && error.startsWith('failed to get metadata of path: ') && /with error: No such file or directory \(os error 2\)$/.test(error)) return false;
     throw error;

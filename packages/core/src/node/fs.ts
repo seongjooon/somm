@@ -1,6 +1,8 @@
 import * as fs from 'node:fs/promises';
 import type { Fs } from '../platform';
 export const nodeFs: Fs = {
+  readBytes: async p => new Uint8Array(await fs.readFile(p)),
+  writeBytes: (p, bytes) => fs.writeFile(p, bytes),
   async exists(p) {
     try { await fs.lstat(p); return true; }
     catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false; throw error; }
