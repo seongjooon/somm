@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import { nodeProc as proc } from './proc';
 test('runs git and resolves absolute binaries', async () => {
   expect((await proc.run('git', ['--version'])).code).toBe(0);
@@ -39,4 +39,15 @@ test('kills descendants even when the parent exits on SIGTERM', async () => {
   await expect(result).rejects.toMatchObject({ name: 'AbortError' });
   await new Promise(resolve => setTimeout(resolve, 50));
   expect(() => process.kill(descendant, 0)).toThrow();
+});
+
+test('ignores kill errors during cancellation and retries with SIGKILL', async () => {
+  const controller = new AbortController();
+  const kill = vi.spyOn(process, 'kill').mockImplementationOnce(() => { throw new Error('kill denied'); });
+  try {
+    const result = proc.run(process.execPath, ['-e', 'console.log("ready");setInterval(()=>{},1000)'], {
+      signal: controller.signal, onLine: () => controller.abort(),
+    });
+    await expect(result).rejects.toMatchObject({ name: 'AbortError' });
+  } finally { kill.mockRestore(); }
 });

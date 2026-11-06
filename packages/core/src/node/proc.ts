@@ -26,7 +26,7 @@ export const nodeProc: Proc = {
       let aborted = false;
       let timer: ReturnType<typeof setTimeout> | undefined;
       const kill = (signal: NodeJS.Signals) => {
-        if (child.pid) { try { process.kill(-child.pid, signal); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error; } }
+        if (child.pid) { try { process.kill(-child.pid, signal); } catch { /* Cancellation must remain best-effort if signaling fails. */ } }
       };
       const abort = () => { aborted = true; kill('SIGTERM'); timer = setTimeout(() => kill('SIGKILL'), 300); };
       opts.signal?.addEventListener('abort', abort, { once: true });
