@@ -10,8 +10,9 @@ export async function run(args: string[], ctx: CliContext): Promise<number> {
   const abort = () => controller.abort();
   process.on('SIGINT', abort); process.on('SIGTERM', abort);
   try {
-    const { values: v, positionals: p } = parseArgs({ args, allowPositionals: true, options: { agent: { type: 'string' }, project: { type: 'string' }, runs: { type: 'string' }, auth: { type: 'string' }, task: { type: 'string' }, budget: { type: 'string' }, yes: { type: 'boolean' }, json: { type: 'boolean' }, refresh: { type: 'boolean' } } });
-    if (p.length !== 1 || !v.project || !['claude', 'codex'].includes(v.agent ?? '') || !['quick', 'thorough'].includes(v.runs ?? 'quick') || !['subscription', 'isolated'].includes(v.auth ?? 'subscription') || (v.budget !== undefined && (!Number.isFinite(Number(v.budget)) || Number(v.budget) <= 0))) throw new Error('Usage: somm test <skill> --project <dir> --agent claude|codex');
+    const { values: v, positionals: p } = parseArgs({ args, allowPositionals: true, options: { agent: { type: 'string' }, project: { type: 'string' }, runs: { type: 'string' }, auth: { type: 'string' }, task: { type: 'string' }, budget: { type: 'string' }, model: { type: 'string' }, yes: { type: 'boolean' }, json: { type: 'boolean' }, refresh: { type: 'boolean' } } });
+    if (p.length !== 1 || !v.project || !['claude', 'codex'].includes(v.agent ?? '') || !['quick', 'thorough'].includes(v.runs ?? 'quick') || !['subscription', 'isolated'].includes(v.auth ?? 'subscription') || (v.budget !== undefined && (!Number.isFinite(Number(v.budget)) || Number(v.budget) <= 0))) throw new Error('Usage: somm test <skill> --project <dir> --agent claude|codex [--model <name>]');
+    if (v.model !== undefined && (!v.model || /\s/.test(v.model) || v.model.startsWith('-'))) throw new Error('Invalid --model: use a non-empty name without whitespace or a leading dash');
     if (ctx.json && !v.task) throw new Error('--task is required with --json');
     agentId = v.agent as AgentId;
     const opts: RunOptions = { agent: agentId, runs: (v.runs ?? 'quick') as RunOptions['runs'], auth: (v.auth ?? 'subscription') as RunOptions['auth'], ...(v.budget ? { budgetUsd: Number(v.budget) } : {}) };
@@ -30,6 +31,7 @@ export async function run(args: string[], ctx: CliContext): Promise<number> {
     const estimate = estimateUsage(opts, !!v.task, []);
     if (!ctx.json) {
       ctx.err(`Usage: ${estimate.abRuns} A/B runs, a verdict${v.task ? '' : ', and a task proposal'} (${estimate.agentCalls} agent calls).${estimate.maxUsd !== undefined ? ` Estimated budget: $${estimate.maxUsd}${opts.agent === 'codex' ? ' (not enforced by Codex)' : ' maximum'}.` : ''}`);
+      if (v.model) ctx.err(`Model: ${v.model}`);
       if (estimate.warnThorough) ctx.err('This uses 6 runs of your subscription quota. Subscription limits assume individual use.');
     }
     if (!v.yes && !await (ctx.confirm as (q: string, signal?: AbortSignal) => Promise<boolean>)('Continue?', controller.signal)) throw new Error('Run cancelled');
@@ -37,7 +39,7 @@ export async function run(args: string[], ctx: CliContext): Promise<number> {
     if (!task) {
       let choices: string[];
       try {
-        choices = await proposeTasks(ctx.platform, { agent: createAgents(ctx.platform)[opts.agent], sandbox: createLiteSandbox(ctx.platform, bins) }, { runId: crypto.randomUUID(), projectDir: resolve(v.project), skill, opts, signal: controller.signal });
+        choices = await proposeTasks(ctx.platform, { agent: createAgents(ctx.platform)[opts.agent], sandbox: createLiteSandbox(ctx.platform, bins) }, { runId: crypto.randomUUID(), projectDir: resolve(v.project), skill, opts, model: v.model, signal: controller.signal });
       } catch (error) {
         if (!(error instanceof Error) || error.name !== 'TargetInResidueError') throw error;
         const location = opts.agent === 'codex' ? 'CODEX_HOME/skills or project skills' : 'project skills';
@@ -57,7 +59,7 @@ export async function run(args: string[], ctx: CliContext): Promise<number> {
     const events: Record<string, AgentEvent[]> = {};
     const seen = new Set<string>();
     const result = await runAB(ctx.platform, { agent: createAgents(ctx.platform)[opts.agent], sandbox: createLiteSandbox(ctx.platform, bins) }, {
-      runId: crypto.randomUUID(), skill, identity: { source: skill.source, contentHash: await hashFiles(skill.files) }, staticGrade: report.grade, projectDir: resolve(v.project), task, opts, signal: controller.signal,
+      runId: crypto.randomUUID(), skill, identity: { source: skill.source, contentHash: await hashFiles(skill.files) }, staticGrade: report.grade, projectDir: resolve(v.project), task, opts, model: v.model, signal: controller.signal,
       onEvent: (arm, event) => { (events[arm] ??= []).push(event); if (!ctx.json && !seen.has(arm)) { seen.add(arm); ctx.err(`Running ${arm}...`); } },
     });
     await saveRun(ctx.platform, result, events);

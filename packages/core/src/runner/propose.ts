@@ -14,7 +14,7 @@ export class TargetInResidueError extends Error {
 }
 
 export async function proposeTasks(p: Platform, deps: { agent: AgentAdapter; sandbox: Sandbox }, req: {
-  runId: string; projectDir: string; skill: Pick<SkillMeta, 'name' | 'description'>; opts: RunOptions; signal: AbortSignal;
+  runId: string; projectDir: string; skill: Pick<SkillMeta, 'name' | 'description'>; opts: RunOptions; model?: string; signal: AbortSignal;
 }): Promise<string[]> {
   let primary: unknown, failed = false;
   try {
@@ -47,7 +47,7 @@ export async function proposeTasks(p: Platform, deps: { agent: AgentAdapter; san
       }
     }
     await visit(prepared.base);
-    const out = await invokeAgent(p, deps.agent, { cwd: prepared.base, tmpHome: `${prepared.base}/../home-proposal`, prompt: proposeTasksPrompt(req.skill, tree), opts: req.opts, signal: req.signal, scrub: makeScrub(req.opts.apiKey) });
+    const out = await invokeAgent(p, deps.agent, { cwd: prepared.base, tmpHome: `${prepared.base}/../home-proposal`, prompt: proposeTasksPrompt(req.skill, tree), opts: req.opts, model: req.model, signal: req.signal, scrub: makeScrub(req.opts.apiKey) });
     if (out.auth) throw new Error('Agent authentication failed. Log in and retry.');
     if (out.budget) throw new Error('Agent budget exceeded while proposing tasks.');
     if (out.timedOut || out.code !== 0) throw new Error('Agent could not propose tasks.');
