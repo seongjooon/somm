@@ -4,17 +4,18 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createNodePlatform } from '@somm/core/node';
 import type { CliContext } from '../output';
-const fake = vi.hoisted(() => ({ run: vi.fn(), save: vi.fn() }));
-vi.mock('@somm/core', async importOriginal => ({ ...await importOriginal<typeof import('@somm/core')>(), runAB: fake.run, saveRun: fake.save }));
+const fake = vi.hoisted(() => ({ run: vi.fn(), save: vi.fn(), propose: vi.fn() }));
+vi.mock('@somm/core', async importOriginal => ({ ...await importOriginal<typeof import('@somm/core')>(), runAB: fake.run, saveRun: fake.save, proposeTasks: fake.propose }));
 import { run } from './test';
 let root: string, ctx: CliContext, lines: string[];
 const previous = process.env.SOMM_DATA_DIR;
-const result = () => ({ tag: '// somm: pairs well', a: [], b: [], contamination: { status: 'clean', residue: [] as string[], common: [] as string[], extras: [] as string[], targetInResidue: false }, warnings: [] as string[], verdict: { line: 'Good', rating: 'recommend' }, grade: 'A', meta: {} });
+const metric = () => ({ ok: true, tokensIn: 0, tokensOut: 0, durationMs: 0, tests: null, diff: { files: 0, added: 0, removed: 0, patch: '' }, inventory: { skills: [], plugins: [], mcp: [] }, canaryHits: [] });
+const result = () => ({ tag: '// somm: pairs well', a: [metric()], b: [metric()], contamination: { status: 'clean', residue: [] as string[], common: [] as string[], extras: [] as string[], targetInResidue: false }, warnings: [] as string[], verdict: { line: 'Good', rating: 'recommend' }, grade: 'A', meta: {} });
 beforeEach(async () => {
  root = await mkdtemp(join(tmpdir(), 'somm-result-')); process.env.SOMM_DATA_DIR = join(root, 'data');
  const platform = await createNodePlatform(); platform.home = join(root, 'home'); platform.proc = { which: async names => Object.fromEntries(names.map(n => [n, null])), run: async () => { throw new Error('unexpected process'); } };
  await mkdir(join(root, 'skill')); await writeFile(join(root, 'skill', 'SKILL.md'), '# skill');
- lines = []; ctx = { platform, json: false, out: l => lines.push(l), err: () => {}, confirm: async () => true }; fake.run.mockReset().mockResolvedValue(result()); fake.save.mockReset();
+ lines = []; ctx = { platform, json: false, out: l => lines.push(l), err: () => {}, confirm: async () => true }; fake.run.mockReset().mockResolvedValue(result()); fake.save.mockReset(); fake.propose.mockReset().mockResolvedValue(['alpha', 'beta', 'gamma']);
 });
 afterEach(async () => { if (previous === undefined) delete process.env.SOMM_DATA_DIR; else process.env.SOMM_DATA_DIR = previous; await rm(root, { recursive: true, force: true }); });
 const args = () => [join(root, 'skill'), '--agent', 'codex', '--project', root, '--task', 'work', '--yes'];
@@ -23,3 +24,23 @@ it('emits a single JSON result including residue', async () => { ctx.json = true
 it('stops when the target is in residue', async () => { const r = result(); r.tag = '// somm: needs to breathe'; r.contamination.residue = ['skill']; r.warnings = ['target-in-residue']; fake.run.mockResolvedValue(r); expect(await run(args(), ctx)).toBe(1); expect(lines.join('\n')).toContain('skill is already visible to both arms'); });
 it.each(['SIGINT', 'SIGTERM'] as const)('aborts the run on %s', async signal => { let cleaned = false; fake.run.mockImplementation(async (_p, _d, req) => { try { process.emit(signal); expect(req.signal.aborted).toBe(true); throw new Error('aborted'); } finally { cleaned = true; } }); expect(await run(args(), ctx)).toBe(1); expect(cleaned).toBe(true); expect(lines).toContain('Run cancelled'); });
 it('returns 2 for corked results', async () => { const r = result(); r.tag = '// somm: corked'; fake.run.mockResolvedValue(r); expect(await run(args(), ctx)).toBe(2); });
+it('returns nonzero for incomplete detection', async () => { const r = result(); r.warnings = ['detect-timeout']; r.tag = '// somm: needs to breathe'; fake.run.mockResolvedValue(r); expect(await run(args(), ctx)).toBe(1); });
+it('blocks grade C before invoking the runner', async () => { await writeFile(join(root, 'skill', 'SKILL.md'), 'rm -rf /'); expect(await run(args(), ctx)).toBe(1); expect(fake.run).not.toHaveBeenCalled(); expect(lines.join('\n')).toContain('Static check only'); });
+
+it('uses the agent proposals when no task is supplied', async () => { (ctx as CliContext & { select: (q: string) => Promise<string> }).select = async () => '2'; const options = args().filter((_, i, a) => a[i] !== '--task' && a[i - 1] !== '--task'); expect(await run(options, ctx)).toBe(0); expect(fake.propose).toHaveBeenCalledOnce(); expect(fake.run.mock.calls[0][2].task).toBe('beta'); });
+it('cancels while waiting for task selection', async () => {
+  (ctx as CliContext & { select: (q: string, signal?: AbortSignal) => Promise<string> }).select = async (_q, signal) => {
+    process.emit('SIGINT');
+    if (signal?.aborted) throw new DOMException('aborted', 'AbortError');
+    return '1';
+  };
+  const options = args().filter((_, i, a) => a[i] !== '--task' && a[i - 1] !== '--task');
+  expect(await run(options, ctx)).toBe(1); expect(fake.run).not.toHaveBeenCalled(); expect(lines).toContain('Run cancelled');
+});
+it('includes the proposal call in the usage estimate', async () => {
+  const messages: string[] = []; ctx.err = s => messages.push(s);
+  (ctx as CliContext & { select: (q: string) => Promise<string> }).select = async () => '1';
+  const options = args().filter((_, i, a) => a[i] !== '--task' && a[i - 1] !== '--task');
+  expect(await run(options, ctx)).toBe(0);
+  expect(messages.join('\n')).toMatch(/proposal.*4 agent calls/i);
+});
