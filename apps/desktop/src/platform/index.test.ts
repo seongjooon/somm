@@ -1,5 +1,5 @@
 import { expect, test, vi } from 'vitest';
-const bridge = vi.hoisted(() => ({ lstat: vi.fn(), rename: vi.fn(), exists: vi.fn(async () => false) }));
+const bridge = vi.hoisted(() => ({ readFile: vi.fn(), writeFile: vi.fn(), lstat: vi.fn(), rename: vi.fn(), exists: vi.fn(async () => false) }));
 vi.mock('@tauri-apps/plugin-fs', () => bridge);
 const invokeMock = vi.hoisted(() => vi.fn(async (command: string, _args?: unknown): Promise<unknown> => command === 'readlink' ? '/tmp/data/target' : { home: '/tmp/home', dataDir: '/tmp/data', env: { PATH: '/custom/bin', SOMM_DATA_DIR: '/tmp/data' } }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }));
@@ -40,4 +40,17 @@ test('propagates filesystem errors from exists and remove', async () => {
     bridge.lstat.mockRejectedValueOnce(error);
     await expect(p.fs.remove('/x')).rejects.toBe(error);
   }
+});
+
+test('byte adapter preserves binary buffers and propagates read/write denial', async () => {
+  const p = await createTauriPlatform();
+  const bytes = new Uint8Array([0, 255, 128, 13, 10]);
+  bridge.readFile.mockResolvedValueOnce(bytes);
+  expect(await p.fs.readBytes('/tmp/data/asset')).toEqual(bytes);
+  await p.fs.writeBytes('/tmp/data/asset', bytes);
+  expect(bridge.writeFile).toHaveBeenLastCalledWith('/tmp/data/asset', bytes);
+  bridge.readFile.mockRejectedValueOnce('denied');
+  await expect(p.fs.readBytes('/outside')).rejects.toBe('denied');
+  bridge.writeFile.mockRejectedValueOnce('denied');
+  await expect(p.fs.writeBytes('/outside', bytes)).rejects.toBe('denied');
 });

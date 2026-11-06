@@ -18,7 +18,7 @@ export async function readFiles(p: Platform, dir: string, prefix = ''): Promise<
     if (e.name === '.somm.json' || e.isSymlink) continue;
     const path = prefix ? `${prefix}/${e.name}` : e.name;
     if (e.isDir) files.push(...await readFiles(p, dir, path));
-    else files.push({ path, contents: await p.fs.readText(join(dir, path)) });
+    else files.push({ path, contents: await p.fs.readBytes(join(dir, path)) });
   }
   return files;
 }

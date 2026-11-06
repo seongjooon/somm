@@ -96,6 +96,24 @@
           "path": "$HOME/.agents/skills/**"
         }
       ]
-    }
+    },
+    {
+      "identifier": "fs:allow-read-file",
+      "allow": [
+        {
+          "path": "$HOME/.codex/skills"
+        },
+        {
+          "path": "$HOME/.codex/skills/**"
+        },
+        {
+          "path": "$HOME/.codex/skills/.system"
+        },
+        {
+          "path": "$HOME/.codex/skills/.system/**"
+        }
+      ]
+    },
+    "fs:allow-write-file"
   ]
 }
