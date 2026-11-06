@@ -1,3 +1,4 @@
+import { skillText } from '../types';
 import type { Finding, ScanReport, SkillFile } from '../types';
 import { staticGrade } from './grade';
 import { secretPostLines } from './shell-flow';
@@ -26,9 +27,21 @@ export function scanSkill(files: SkillFile[], ctx: { name: string; knownNames?: 
   const findings: Finding[] = [];
   const rules = (ctx.rules ?? loadRules()).map(rule => ({ rule, regex: compileRule(rule) }));
   for (const file of files) {
+    const text = skillText(file.contents);
+    const asset = /\.(?:png|jpe?g|gif|webp|ico|pdf|woff2?|ttf|otf|mp[34]|wav|ogg|zip|docx|pptx|xlsx)$/i.test(file.path);
+    const codeDir = /(?:^|\/)(?:scripts|hooks|commands)\//i.test(normalizedPath(file.path));
+    if (text === undefined) {
+      if (asset && !codeDir) {
+        findings.push({ ruleId: 'unscannable-asset', severity: 'medium', file: file.path, line: 1, message: 'Binary asset cannot be inspected; review before installing.' });
+      } else {
+        findings.push({ ruleId: 'unscannable-code', severity: 'critical', file: file.path, line: 1, message: 'Executable or configuration content cannot be inspected as UTF-8; testing is required before installation.' });
+      }
+      continue;
+    }
+    if (asset) findings.push({ ruleId: 'disguised-asset', severity: text.startsWith('#!') ? 'critical' : 'high', file: file.path, line: 1, message: 'Text content is disguised as a binary asset.' });
     const path = normalizedPath(file.path);
     const applicable = rules.filter(({ rule }) => !rule.files || rule.files.some(glob => fileMatches(path, glob)));
-    const lines = file.contents.split(/\r\n|\n|\r/);
+    const lines = text.split(/\r\n|\n|\r/);
     for (const [index, line] of lines.entries()) {
       for (const { rule, regex } of applicable) {
         regex.lastIndex = 0;
