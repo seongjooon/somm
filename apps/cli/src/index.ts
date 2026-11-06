@@ -24,9 +24,9 @@ if (values.help || !command) {
     else console.error('// somm: unknown command');
     process.exitCode = 1;
   } else {
-    // T3 injects the platform before commands need I/O.
+    const { createNodePlatform } = await import('@somm/core/node');
     process.exitCode = await commands[name].run(argv.slice(command.index + 1), {
-      platform: undefined!, out: console.log, err: console.error,
+      platform: await createNodePlatform(), out: console.log, err: console.error,
       json: values.json === true, confirm: async () => false,
     });
   }
