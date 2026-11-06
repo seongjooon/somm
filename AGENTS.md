@@ -49,4 +49,12 @@ Source of truth: `docs/PRD.md`. Read it before planning. Do not build anything l
 - Code, identifiers, comments, commit messages in English. UI strings in English first, with i18n keys.
 
 ## Commands
-<!-- Fill in after scaffolding: dev, build, test, lint -->
+- Install: `pnpm install`
+- Desktop dev: `pnpm --filter desktop tauri dev`
+- Web-only dev: `pnpm --filter desktop dev`
+- Tests: `pnpm -r test`
+- Type/Svelte checks: `pnpm -r check` (no separate lint command yet)
+- Build: `pnpm -r build`
+- CLI help: `node apps/cli/dist/cli.js --help`
+- Rust check: `cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml`
+- Rust tests: `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml`
