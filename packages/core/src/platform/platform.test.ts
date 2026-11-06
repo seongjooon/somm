@@ -10,3 +10,7 @@ test('hashes sorted paths and detects a byte change', async () => {
   expect(await hashFiles(files)).not.toBe(await hashFiles([{ path: 'b', contents: 'C' }, files[1]]));
   expect(await hashFiles(files)).toMatch(/^[a-f0-9]{64}$/);
 });
+
+test('falls back when the data directory environment variable is empty', () => {
+  expect(resolveDataDir({ SOMM_DATA_DIR: '' }, '/h')).toBe('/h/Library/Application Support/io.github.seongjooon.somm');
+});

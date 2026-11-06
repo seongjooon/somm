@@ -18,7 +18,7 @@ export interface Db { select<T>(sql: string, params?: unknown[]): Promise<T[]>; 
 export interface Platform { fs: Fs; proc: Proc; db: Db; home: string; dataDir: string; env: Record<string, string | undefined> }
 
 export function resolveDataDir(env: Record<string, string | undefined>, home: string): string {
-  return env.SOMM_DATA_DIR ?? `${home.replace(/\/$/, '')}/Library/Application Support/io.github.seongjooon.somm`;
+  return env.SOMM_DATA_DIR || `${home.replace(/\/$/, '')}/Library/Application Support/io.github.seongjooon.somm`;
 }
 export async function hashFiles(files: SkillFile[]): Promise<string> {
   const text = [...files].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0)
