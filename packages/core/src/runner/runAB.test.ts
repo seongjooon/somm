@@ -113,3 +113,11 @@ test('saveRun never persists the api key', async () => {
   expect(dump).not.toContain(key);
   expect((await e.db.select('SELECT * FROM run_arms')).length).toBe(2);
 });
+test('binary skill files reach B byte-identical', async () => {
+  const bytes = new Uint8Array([0, 255, 128, 10, 13, 0xc3, 0x28]);
+  const e = await setup();
+  const files = [{ path: 'SKILL.md', contents: '# tdd' }, { path: 'assets/logo.bin', contents: bytes }];
+  await runAB(e.p, e, req(e, { skill: { name: 'tdd', files } }));
+  expect(e.calls[0].binary).toBeNull();
+  expect(Array.from(e.calls[1].binary!)).toEqual(Array.from(bytes));
+});
