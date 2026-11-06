@@ -31,3 +31,14 @@ test.each(['cancel', 'timeout'] as const)('preserves proposal %s when cleanup fa
   const err = failure as Error & { cleanupMessage: string; primaryMessage: string; cause: Error };
   expect(err.cleanupMessage).toContain('[REDACTED]'); expect(JSON.stringify({ message: err.message, cause: err.cause.message, cleanup: err.cleanupMessage, stack: err.stack })).not.toContain(key);
 });
+test('preserves and redacts target residue details when cleanup fails', async () => {
+  const key = 'sk-fake-residue-secret'; const e = await makeEnv({ residue: ['tdd', `other-${key}`] }); root = e.root;
+  e.sandbox.cleanup = async () => { throw new Error(`failed ${key}`); };
+  let failure: unknown;
+  try { await proposeTasks(e.p, e, { runId: 'proposal', projectDir: root, skill: { name: 'tdd', description: '' }, opts: { agent: 'claude', auth: 'isolated', runs: 'quick', apiKey: key, budgetUsd: 1 }, signal: new AbortController().signal }); } catch (error) { failure = error; }
+  expect(failure).toMatchObject({ name: 'RunCleanupError', primaryName: 'TargetInResidueError', primaryDetails: { skillName: 'tdd' }, recoveryPath: `${e.p.dataDir}/runs/proposal` });
+  const error = failure as Error & { primaryDetails: { residue: string[] }; cause: Error & { skillName: string; residue: string[] }; cleanupMessage: string };
+  expect(error.cause.name).toBe('TargetInResidueError'); expect(error.cause.skillName).toBe('tdd');
+  for (const residue of [error.primaryDetails.residue, error.cause.residue]) expect([...residue].sort()).toEqual(['other-[REDACTED]', 'tdd']);
+  expect(error.cleanupMessage).toContain('[REDACTED]'); expect(JSON.stringify(failure)).not.toContain(key); expect(error.message).not.toContain(key);
+});
