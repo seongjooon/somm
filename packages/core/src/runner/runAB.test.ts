@@ -78,7 +78,9 @@ test('auth error event stops the run immediately', async () => {
 });
 test('target already in residue stops without agent calls', async () => {
   const e = await setup({ residue: ['tdd', 'other'] });
+  let detects = 0; const detect = e.agent.detect; e.agent.detect = async () => { detects++; return detect(); };
   const r = await runAB(e.p, e, req(e));
+  expect(detects).toBe(0);
   expect(e.calls).toHaveLength(0);
   expect(r.warnings).toEqual(['target-in-residue']);
   expect(r.contamination).toMatchObject({ status: 'contaminated', targetInResidue: true, residue: ['other', 'tdd'] });

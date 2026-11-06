@@ -17,6 +17,7 @@ export function createLiteSandbox(p: Platform, bins: Record<string, string | nul
   const gitBin = bins.git || 'git';
   // nodeProc merges env into process.env, so PATH is inherited.
   const configs = new Map<string, string>();
+  const pending = new Map<string, string>();
   const scrub = Object.fromEntries(['GIT_DIR', 'GIT_WORK_TREE', 'GIT_EXTERNAL_DIFF', 'GIT_ASKPASS', 'GIT_SSH_COMMAND', 'GIT_PAGER'].map(k => [k, null]));
   async function gitRun(cwd: string, args: string[], env: Record<string, string> = {}) {
     return p.proc.run(gitBin, ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false',
@@ -45,7 +46,7 @@ export function createLiteSandbox(p: Platform, bins: Record<string, string | nul
     }
   }
   return {
-    async prepare(projectDir, runId) {
+    async prepare(projectDir, runId, options?: { deferDependencies?: boolean }) {
       const root = `${runs}/${identifier(runId)}`, base = `${root}/base`;
       if (!projectDir.startsWith('/') || projectDir.split('/').includes('..')) throw new Error('Expected absolute project path');
       async function canonical(path: string): Promise<string> {
@@ -94,7 +95,8 @@ export function createLiteSandbox(p: Platform, bins: Record<string, string | nul
         }
         if (await lfs(base)) warn(warnings, 'lfs');
         await sanitize(p, base, warnings);
-        const deps = await prepareDeps(p, bins, projectDir, base, warnings);
+        const deps = options?.deferDependencies ? { mode: 'none' as const, ok: true, log: '' } : await prepareDeps(p, bins, projectDir, base, warnings);
+        if (options?.deferDependencies) pending.set(runId, projectDir);
         await git(base, ['init', '-q']);
         await p.fs.writeText(`${base}/.git/info/exclude`, [...excluded].filter(x => x !== '.git').join('/\n') + '/\n');
         await git(base, ['add', '-Af', '--', '.',
@@ -105,8 +107,21 @@ export function createLiteSandbox(p: Platform, bins: Record<string, string | nul
       } catch (error) {
         if (created) await p.fs.remove(root);
         active.delete(runId);
+        pending.delete(runId);
         throw error;
       }
+    },
+    async preparePreflight(projectDir, runId) {
+      return this.prepare(projectDir, runId, { deferDependencies: true });
+    },
+    async prepareDependencies(base) {
+      await owned(base);
+      if (!base.endsWith('/base')) throw new Error('Expected sandbox base');
+      const runId = base.slice(runs.length + 1, -5);
+      const source = pending.get(runId);
+      if (!source) throw new Error('No pending dependency preparation');
+      pending.delete(runId);
+      return prepareDeps(p, bins, source, base, active.get(runId)!);
     },
     async split(base, arms) {
       await owned(base);
@@ -175,6 +190,7 @@ export function createLiteSandbox(p: Platform, bins: Record<string, string | nul
       await p.fs.remove(root);
       active.delete(runId);
       configs.delete(runId);
+      pending.delete(runId);
     },
   };
 }

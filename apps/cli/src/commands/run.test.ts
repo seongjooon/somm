@@ -1,16 +1,18 @@
-import { afterEach, beforeEach, expect, it } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createNodePlatform } from '@somm/core/node';
 import type { CliContext } from '../output';
+const fake = vi.hoisted(() => ({ base: '' }));
+vi.mock('@somm/core', async original => ({ ...await original<typeof import('@somm/core')>(), createLiteSandbox: () => ({ prepare: async () => ({ base: fake.base, warnings: [], deps: { mode: 'none', ok: true, log: '' } }), preparePreflight: async () => ({ base: fake.base, warnings: [], deps: { mode: 'none', ok: true, log: '' } }), prepareDependencies: async () => ({ mode: 'none', ok: true, log: '' }), cleanup: async () => {} }) }));
 import * as install from './install';
 import * as test from './test';
 
 let root: string, ctx: CliContext, lines: string[];
 const previous = process.env.SOMM_DATA_DIR;
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), 'somm-run-'));
+  root = await mkdtemp(join(tmpdir(), 'somm-run-')); fake.base = root;
   process.env.SOMM_DATA_DIR = join(root, 'data');
   const platform = await createNodePlatform(); platform.home = join(root, 'home');
   platform.proc = { which: async names => Object.fromEntries(names.map(n => [n, null])), run: async () => { throw new Error('unexpected process'); } };

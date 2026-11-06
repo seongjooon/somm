@@ -57,6 +57,8 @@ export async function makeEnv(opts: { script?: Script; loggedIn?: boolean | 'unk
       for (const s of opts.residue ?? []) { await nodeFs.mkdirp(join(base, '.claude/skills', s)); await nodeFs.writeText(join(base, '.claude/skills', s, 'SKILL.md'), '---\n---\n'); }
       return { base, deps: { mode: 'none', ok: true, log: '' }, warnings: [] };
     },
+    async preparePreflight(project, runId) { return this.prepare(project, runId); },
+    async prepareDependencies() { return { mode: 'none', ok: true, log: '' }; },
     async split(base, arms) {
       const out: Record<string, string> = {};
       for (const a of arms) { out[a] = join(base, '..', a); await nodeFs.mkdirp(out[a]); for (const [f, c] of Object.entries(opts.armFiles ?? {})) await nodeFs.writeText(join(out[a], f), c); }
