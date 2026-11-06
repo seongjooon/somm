@@ -14,7 +14,7 @@ export interface RunResult {
   runId: string; a: ArmMetrics[]; b: ArmMetrics[]; contamination: Contamination; verdict: Verdict | null;
   grade: Grade; tag: SommTag; confidence: 'low' | 'normal'; warnings: string[]; meta: RunMeta;
 }
-export interface RunRequest {
+export interface RunABRequest {
   runId: string; skill: { name: string; files: SkillFile[] }; staticGrade: Exclude<Grade, 'F'>; projectDir: string; task: string;
   opts: RunOptions; signal: AbortSignal; onEvent: (arm: string, e: AgentEvent) => void;
 }
@@ -23,7 +23,7 @@ const parentDir = (path: string) => path.slice(0, path.lastIndexOf('/'));
 const safeRel = (path: string) => path !== '' && !path.startsWith('/') && !path.split('/').some(s => s === '..' || s === '');
 const union = (invs: Inventory[]) => ({ skills: [...new Set(invs.flatMap(i => i.skills))], plugins: [], mcp: [] });
 
-export async function runAB(p: Platform, deps: { agent: AgentAdapter; sandbox: Sandbox }, req: RunRequest): Promise<RunResult> {
+export async function runAB(p: Platform, deps: { agent: AgentAdapter; sandbox: Sandbox }, req: RunABRequest): Promise<RunResult> {
   const { agent, sandbox } = deps;
   const { skill, opts, signal } = req;
   if (!/^[A-Za-z0-9._-]+$/.test(skill.name) || skill.name === '.' || skill.name === '..') throw new Error(`Unsafe skill name: ${skill.name}`);
