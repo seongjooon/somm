@@ -20,7 +20,7 @@ export const okLines = (skills: string[] = []) => [
 ];
 export const VERDICT = line({ kind: 'text', text: '{"line":"Tighter diffs.","rating":"recommend"}' });
 
-export async function makeEnv(opts: { script?: Script; loggedIn?: boolean | 'unknown'; installed?: boolean; residue?: string[]; diffThrows?: boolean } = {}) {
+export async function makeEnv(opts: { script?: Script; loggedIn?: boolean | 'unknown'; installed?: boolean; residue?: string[]; diffThrows?: boolean; patch?: string; cleanupThrows?: boolean; armFiles?: Record<string, string>; detectHangs?: boolean } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'somm-runab-'));
   const database = new DatabaseSync(':memory:');
   const db: Db = {
@@ -59,16 +59,16 @@ export async function makeEnv(opts: { script?: Script; loggedIn?: boolean | 'unk
     },
     async split(base, arms) {
       const out: Record<string, string> = {};
-      for (const a of arms) { out[a] = join(base, '..', a); await nodeFs.mkdirp(out[a]); }
+      for (const a of arms) { out[a] = join(base, '..', a); await nodeFs.mkdirp(out[a]); for (const [f, c] of Object.entries(opts.armFiles ?? {})) await nodeFs.writeText(join(out[a], f), c); }
       return out;
     },
     async plantCanaries({ projectDir }) { return [{ path: join(projectDir, '.env'), token: `somm-canary-${'ab'.repeat(8)}` }]; },
-    async diffStat() { if (opts.diffThrows) throw new Error('diff failed'); return { files: 1, added: 2, removed: 1, patch: 'PATCH' }; },
-    async cleanup(runId) { cleaned.push(runId); },
+    async diffStat() { if (opts.diffThrows) throw new Error('diff failed'); return { files: 1, added: 2, removed: 1, patch: opts.patch ?? 'PATCH' }; },
+    async cleanup(runId) { cleaned.push(runId); if (opts.cleanupThrows) throw new Error('cleanup boom'); },
   };
   const agent: AgentAdapter = {
     id: 'claude',
-    async detect() { return { installed: opts.installed ?? true, loggedIn: opts.loggedIn ?? true }; },
+    async detect() { if (opts.detectHangs) return new Promise<never>(() => {}); return { installed: opts.installed ?? true, loggedIn: opts.loggedIn ?? true }; },
     skillDir: (_scope: string, proj = '') => join(proj, '.claude/skills'),
     async enumerateSkills(dir: string) {
       const root2 = join(dir, '.claude/skills');
