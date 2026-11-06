@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest';
+import type { SkillMeta } from '../types';
 import { parseTasks, parseVerdict, proposeTasksPrompt, sommTag, verdictPrompt } from './verdict';
 
 test.each([
@@ -26,7 +27,7 @@ test('parseTasks needs exactly three', () => {
   expect(() => parseTasks('1. a\n2. b\n3. c\n4. d')).toThrow();
 });
 test('prompts include their inputs', () => {
-  const skill = { id: 'i', name: 'tdd', description: 'Write tests first', source: 'sample', repoUrl: '', ref: '', path: '', snapshots: [], agents: [] } as const;
+  const skill: SkillMeta = { id: 'i', name: 'tdd', description: 'Write tests first', source: 'sample', repoUrl: '', ref: '', path: '', snapshots: [], agents: [] };
   const p = proposeTasksPrompt(skill, ['src/a.ts', 'README.md']);
   expect(p).toContain('tdd'); expect(p).toContain('src/a.ts');
   const v = verdictPrompt({ skill: 'tdd', rows: [{ metric: 'tokensIn', a: 1, b: 2, deltaPct: 100 }], diffA: 'DIFF-A', diffB: 'DIFF-B' });
