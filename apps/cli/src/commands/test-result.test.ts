@@ -22,7 +22,7 @@ const args = () => [join(root, 'skill'), '--agent', 'codex', '--project', root, 
 it('prints the result tag first and zero residue', async () => { expect(await run(args(), ctx)).toBe(0); expect(lines[0]).toBe('// somm: pairs well'); expect(lines).toContain('Shared residue: 0'); });
 it('emits a single JSON result including residue', async () => { ctx.json = true; expect(await run(args(), ctx)).toBe(0); expect(lines).toHaveLength(1); expect(JSON.parse(lines[0]).contamination.residue).toEqual([]); });
 it('stops when the target is in residue', async () => { const r = result(); r.tag = '// somm: needs to breathe'; r.contamination.residue = ['skill']; r.warnings = ['target-in-residue']; fake.run.mockResolvedValue(r); expect(await run(args(), ctx)).toBe(1); expect(lines.join('\n')).toContain('skill is already visible to both arms'); });
-it.each(['SIGINT', 'SIGTERM'] as const)('aborts the run on %s', async signal => { let cleaned = false; fake.run.mockImplementation(async (_p, _d, req) => { try { process.emit(signal); expect(req.signal.aborted).toBe(true); throw new Error('aborted'); } finally { cleaned = true; } }); expect(await run(args(), ctx)).toBe(1); expect(cleaned).toBe(true); expect(lines).toContain('Run cancelled'); });
+it.each(['SIGINT', 'SIGTERM'] as const)('aborts the run on %s', async signal => { let cleaned = false; fake.run.mockImplementation(async (_p, _d, req) => { try { process.emit(signal); expect(req.signal.aborted).toBe(true); throw new DOMException('aborted', 'AbortError'); } finally { cleaned = true; } }); expect(await run(args(), ctx)).toBe(1); expect(cleaned).toBe(true); expect(lines).toContain('Run cancelled'); });
 it('returns 2 for corked results', async () => { const r = result(); r.tag = '// somm: corked'; fake.run.mockResolvedValue(r); expect(await run(args(), ctx)).toBe(2); });
 it('returns nonzero for incomplete detection', async () => { const r = result(); r.warnings = ['detect-timeout']; r.tag = '// somm: needs to breathe'; fake.run.mockResolvedValue(r); expect(await run(args(), ctx)).toBe(1); });
 it('blocks grade C before invoking the runner', async () => { await writeFile(join(root, 'skill', 'SKILL.md'), 'rm -rf /'); expect(await run(args(), ctx)).toBe(1); expect(fake.run).not.toHaveBeenCalled(); expect(lines.join('\n')).toContain('Static check only'); });
@@ -76,4 +76,19 @@ it.each([false, true])('reports cancellation and cleanup failure with recovery p
 it('reports recovery path when only cleanup failed', async () => {
   const r = { ...result(), warnings: ['cleanup-failed'], cleanupRecoveryPath: `${ctx.platform.dataDir}/runs/abc` }; fake.run.mockResolvedValue(r);
   expect(await run(args(), ctx)).toBe(1); expect(lines).toContain(`Recovery path: ${ctx.platform.dataDir}/runs/abc`);
+});
+it.each([false, true])('preserves target residue and cleanup recovery in output (json=%s)', async json => {
+  const { RunCleanupError, TargetInResidueError } = await import('@somm/core'); const key = 'sk-fake-target-secret';
+  fake.propose.mockImplementation(async () => { ctx.json = json; throw new RunCleanupError(ctx.platform, 'abc', key, new TargetInResidueError('skill', ['skill', `other-${key}`]), new Error(`cleanup ${key}`)); });
+  const options = args().filter((_, i, a) => a[i] !== '--task' && a[i - 1] !== '--task');
+  expect(await run(options, ctx)).toBe(1);
+  const out = lines.join('\n'); expect(out).not.toContain(key); expect(out).toContain('[REDACTED]'); expect(out).toContain(`${ctx.platform.dataDir}/runs/abc`); expect(out).toContain('cleanup');
+  if (json) expect(JSON.parse(lines[0])).toMatchObject({ somm: 'needs to breathe', error: 'target-in-residue', contamination: { targetInResidue: true, residue: ['other-[REDACTED]', 'skill'] }, primaryName: 'TargetInResidueError' });
+  else { expect(lines[0]).toBe('// somm: needs to breathe'); expect(out).toContain('skill is already visible to both arms'); expect(out).toContain('Shared residue: 2 (other-[REDACTED], skill)'); }
+});
+it.each([false, true])('does not mask an unrelated primary failure when signalled (cleanup=%s)', async cleanup => {
+  const { RunCleanupError } = await import('@somm/core');
+  fake.run.mockImplementation(async () => { process.emit('SIGINT'); const original = new Error('disk failed'); throw cleanup ? new RunCleanupError(ctx.platform, 'abc', undefined, original, new Error('cleanup failed')) : original; });
+  expect(await run(args(), ctx)).toBe(1); expect(lines.join('\n')).toContain('disk failed'); expect(lines.join('\n')).not.toContain('Run cancelled');
+  if (cleanup) expect(lines.join('\n')).toContain('cleanup failed');
 });

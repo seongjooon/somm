@@ -6,13 +6,15 @@ import { loadSkill, skillHistory } from './install';
 
 export async function run(args: string[], ctx: CliContext): Promise<number> {
   const controller = new AbortController();
+  let agentId: AgentId | undefined;
   const abort = () => controller.abort();
   process.on('SIGINT', abort); process.on('SIGTERM', abort);
   try {
     const { values: v, positionals: p } = parseArgs({ args, allowPositionals: true, options: { agent: { type: 'string' }, project: { type: 'string' }, runs: { type: 'string' }, auth: { type: 'string' }, task: { type: 'string' }, budget: { type: 'string' }, yes: { type: 'boolean' }, json: { type: 'boolean' }, refresh: { type: 'boolean' } } });
     if (p.length !== 1 || !v.project || !['claude', 'codex'].includes(v.agent ?? '') || !['quick', 'thorough'].includes(v.runs ?? 'quick') || !['subscription', 'isolated'].includes(v.auth ?? 'subscription') || (v.budget !== undefined && (!Number.isFinite(Number(v.budget)) || Number(v.budget) <= 0))) throw new Error('Usage: somm test <skill> --project <dir> --agent claude|codex');
     if (ctx.json && !v.task) throw new Error('--task is required with --json');
-    const opts: RunOptions = { agent: v.agent as AgentId, runs: (v.runs ?? 'quick') as RunOptions['runs'], auth: (v.auth ?? 'subscription') as RunOptions['auth'], ...(v.budget ? { budgetUsd: Number(v.budget) } : {}) };
+    agentId = v.agent as AgentId;
+    const opts: RunOptions = { agent: agentId, runs: (v.runs ?? 'quick') as RunOptions['runs'], auth: (v.auth ?? 'subscription') as RunOptions['auth'], ...(v.budget ? { budgetUsd: Number(v.budget) } : {}) };
     if (opts.auth === 'isolated') {
       const key = opts.agent === 'claude' ? 'ANTHROPIC_API_KEY' : 'CODEX_API_KEY';
       if (!process.env[key]) throw new Error(`${key} is required for isolated authentication`);
@@ -74,11 +76,19 @@ export async function run(args: string[], ctx: CliContext): Promise<number> {
     return result.tag === '// somm: corked' ? 2 : target || result.warnings.some(w => ['auth', 'detect-timeout', 'budget', 'verdict-auth', 'verdict-budget', 'verdict-timeout', 'verdict-failed', 'cleanup-failed'].includes(w)) || !result.verdict || result.a.length !== (opts.runs === 'thorough' ? 3 : 1) || result.b.length !== (opts.runs === 'thorough' ? 3 : 1) || [...result.a, ...result.b].some(a => !a.ok) ? 1 : 0;
   } catch (error) {
     if (error instanceof RunCleanupError) {
-      const message = controller.signal.aborted ? 'Run cancelled' : `${error.primaryName}: ${error.primaryMessage}`;
       const recovery = error.recoveryPath;
-      emit(ctx, 'error', [humanField(message), `Cleanup failed: ${humanField(error.cleanupMessage)}`, ...(recovery ? [`Recovery path: ${humanField(recovery)}`] : [])], { error: message, primaryName: error.primaryName, cleanupError: error.cleanupMessage, recoveryPath: recovery }); return 1;
+      const cleanupLines = [`Cleanup failed: ${humanField(error.cleanupMessage)}`, ...(recovery ? [`Recovery path: ${humanField(recovery)}`] : [])];
+      if (error.primaryName === 'TargetInResidueError' && error.primaryDetails) {
+        const { skillName } = error.primaryDetails;
+        const residue = [...new Set(error.primaryDetails.residue)].sort();
+        const location = agentId === 'codex' ? 'CODEX_HOME/skills or project skills' : 'project skills';
+        const contamination = { status: 'contaminated', common: [], extras: [], residue, targetInResidue: true };
+        emit(ctx, 'needs to breathe', [`Shared residue: ${residue.length}${residue.length ? ` (${residue.map(humanField).join(', ')})` : ''}`, `${humanField(skillName)} is already visible to both arms (${location}). Remove or rename it, then retry.`, ...cleanupLines], { error: 'target-in-residue', contamination, primaryName: error.primaryName, cleanupError: error.cleanupMessage, recoveryPath: recovery }); return 1;
+      }
+      const message = error.primaryName === 'AbortError' ? 'Run cancelled' : `${error.primaryName}: ${error.primaryMessage}`;
+      emit(ctx, 'error', [humanField(message), ...cleanupLines], { error: message, primaryName: error.primaryName, cleanupError: error.cleanupMessage, recoveryPath: recovery }); return 1;
     }
-    const message = controller.signal.aborted ? 'Run cancelled' : error instanceof Error ? error.message : String(error); emit(ctx, 'error', [humanField(message)], { error: message }); return 1;
+    const message = controller.signal.aborted && error instanceof Error && error.name === 'AbortError' ? 'Run cancelled' : error instanceof Error ? error.message : String(error); emit(ctx, 'error', [humanField(message)], { error: message }); return 1;
   }
   finally { process.off('SIGINT', abort); process.off('SIGTERM', abort); }
 }
