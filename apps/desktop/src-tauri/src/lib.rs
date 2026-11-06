@@ -15,6 +15,7 @@ pub fn run() {
             process::spawn_agent,
             process::kill_agent,
             platform::platform_context,
+            platform::readlink,
             platform::symlink
         ])
         .setup(|app| {

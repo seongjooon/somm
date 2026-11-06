@@ -20,3 +20,12 @@ test('supports every filesystem operation with spaces and Korean', async () => {
     await fs.remove(`${root}/missing`);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+test('readlink returns direct relative target without following the chain', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'somm-realpath-'));
+  try {
+    await fs.writeText(`${root}/target`, 'content');
+    await fs.symlink('target', `${root}/relative`);
+    expect(await fs.readlink(`${root}/relative`)).toBe('target');
+    await expect(fs.readlink(`${root}/missing`)).rejects.toMatchObject({ code: 'ENOENT' });
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
