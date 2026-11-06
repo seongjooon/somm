@@ -69,12 +69,15 @@ export async function checkLinks(p: Platform, dir: string, root: string, protect
   const protectedDirs = [...protectedInput, ...await Promise.all(protectedInput.map(d => realPath(p, d)))];
   await scan(p, dir, root, protectedDirs);
 }
+// APFS is case-insensitive by default and /System/Volumes/Data is a firmlink alias of /.
+const norm = (path: string) => path.replace(/^\/System\/Volumes\/Data(?=\/|$)/i, '').toLowerCase().replace(/\/+$/, '');
+// Accepted: readDir failures in realPath are treated as missing (TOCTOU with an agent-controlled tree is not addressed).
 async function scan(p: Platform, dir: string, root: string, protectedDirs: string[]): Promise<void> {
   const resolveAbs = (target: string) => realPath(p, target);
   // Absolute links to system paths (e.g. .venv/bin/python) are kept; links into the project or home are not.
   const absolute = async (target: string) => {
-    const path = (await resolveAbs(target)).replace(/\/+$/, '');
-    if (protectedDirs.some(d => { d = d.replace(/\/+$/, ''); return path === d || path.startsWith(`${d}/`) || d.startsWith(`${path}/`) || path === ''; })) {
+    const path = norm(await resolveAbs(target));
+    if (protectedDirs.some(d => { d = norm(d); return path === d || path.startsWith(`${d}/`) || d.startsWith(`${path}/`) || path === ''; })) {
       throw new Error('Dependency symlink points into project or home');
     }
   };
@@ -97,7 +100,7 @@ async function scan(p: Platform, dir: string, root: string, protectedDirs: strin
       if (entry.isSymlink) {
         if (++hops > 40) throw new Error('Dependency symlink cycle');
         const next = await p.fs.readlink(`${directory}/${part}`);
-        if (next.startsWith('/')) return absolute(next);
+        if (next.startsWith('/')) return absolute([next, ...pending].join('/'));
         pending.unshift(...next.split('/'));
       } else {
         if (pending.some(x => x && x !== '.') && !entry.isDir) throw new Error('Invalid dependency symlink target');
