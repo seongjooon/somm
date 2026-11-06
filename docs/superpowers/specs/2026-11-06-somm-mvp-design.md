@@ -37,7 +37,7 @@ Claude Code·Codex 사용자가 흩어진 스킬을 한곳에서 찾고, **설�
 | 옵션 | 값 | 동작 |
 |---|---|---|
 | **Auth** | **Subscription** (기본) | 이미 설치·로그인된 `claude`, `codex`를 그대로 실행한다 |
-| | **Isolated** | API 키를 쓴다. Claude는 `claude --bare` + `--max-budget-usd`, Codex는 `CODEX_API_KEY` |
+| | **Isolated** | API 키를 쓴다. Claude는 `ANTHROPIC_API_KEY` + `--max-budget-usd` (`--bare`는 T1에서 프로젝트 스킬을 로드하지 않아 보류, 5.2 참고), Codex는 `CODEX_API_KEY` |
 | **Runs** | **Quick** (기본) | A와 B를 각 1회 실행한다 |
 | | **Thorough** | A와 B를 각 3회 실행하고 평균과 편차를 표시한다 |
 
@@ -67,24 +67,29 @@ Claude Code·Codex 사용자가 흩어진 스킬을 한곳에서 찾고, **설�
 5. B에만 대상 스킬을 프로젝트 스코프로 넣는다: Claude는 `.claude/skills/<name>/`, Codex는 `.agents/skills/<name>/`.
 6. 실행이 끝나면 diff, 지표, 이벤트 로그를 DB에 저장하고 `runs/<runId>`는 지운다. 보관 옵션은 두지 않는다.
 
-### 5.2 사용자 전역 설정과의 격리 [실험]
-Task 1 결과에 따라 아래 중 가능한 조합을 쓴다.
-- **Claude Subscription 후보:** `HOME` 교체, `CLAUDE_CONFIG_DIR` 교체, 또는 둘 다 바꾸지 않고 `--setting-sources project,local --strict-mcp-config --no-session-persistence` 조합을 쓴다.
-- **Codex Subscription 후보:** `HOME`만 임시 폴더로 바꾸고 `CODEX_HOME`은 원래 값을 유지한다. 여기에 `--ephemeral`과 `--ignore-user-config`를 붙인다.
-- **Isolated:** Claude는 `--bare`(문서상 키체인을 읽지 않고 훅·CLAUDE.md·플러그인도 건너뜀)를 쓴다. Codex는 임시 `HOME`, 임시 `CODEX_HOME`, `CODEX_API_KEY`를 쓴다.
+### 5.2 사용자 전역 설정과의 격리 [T1 확정]
+근거: `docs/experiments/2026-11-06-isolation.md`
+- **Claude Subscription:** `HOME`과 `CLAUDE_CONFIG_DIR`은 바꾸지 않는다. 둘 중 하나라도 바꾸면 키체인 로그인을 잃는다(C1, C2). 대신 `--setting-sources project,local --strict-mcp-config --no-session-persistence`를 붙인다(C3). 이 조합은 로그인을 유지하면서 사용자 스킬, 플러그인, MCP, 에이전트, 훅, `~/.claude/CLAUDE.md`를 모두 뺀다. 남는 것은 내장 스킬과 `@builtin` 플러그인뿐이며, A와 B에 똑같이 들어간다.
+- **Codex Subscription:** `HOME=<run tmp>`로 바꾸고 `CODEX_HOME`은 원래 값을 유지한다(인증 `auth.json` 위치). 여기에 `--ephemeral --ignore-user-config`를 붙인다. 이 조합은 로그인을 유지하면서 `~/.agents/skills`와 플러그인 스킬을 뺀다(X1). **잔여:** `$CODEX_HOME/skills`(`.system` 포함)와 `$CODEX_HOME/AGENTS.md`는 계속 로드된다. 로그인 파일을 복사하거나 링크하면 3번 원칙에 어긋나므로 이 잔여는 받아들인다. 양쪽 arm에 같으므로 5.3의 "공통"으로 표시한다. `CODEX_HOME` 폴더가 없으면 codex가 즉시 실패한다.
+- **알려진 한계:** 두 CLI 모두 자기 상태 파일을 실제 설정 폴더에 쓴다. Claude는 `~/.claude.json`과 `plugins/store`에, Codex는 `~/.codex`의 로그 DB와 캐시에 쓴다. somm이 쓰는 것은 없다.
+- **Isolated [미검증]:** Claude `--bare`는 키체인을 읽지 않지만 **프로젝트 스킬도 로드하지 않았다**(CA). 그래서 B arm에 대상 스킬이 들어가지 않는다. 대안은 Subscription과 같은 플래그에 `ANTHROPIC_API_KEY`를 주는 것이다. 이때 init 이벤트의 `apiKeySource`가 키를 가리키는지 T10에서 사용자 키로 확인한다. Codex는 임시 `HOME`, 임시 `CODEX_HOME`(폴더를 미리 만든다), `CODEX_API_KEY`를 쓴다(미검증).
 
 ### 5.3 A/B 오염 표시 [결정]
-- 각 실행에서 실제로 로드된 스킬·플러그인·MCP 목록을 읽는다. Claude는 stream-json의 초기화 이벤트를 읽는다. Codex는 JSON 이벤트에 목록이 없으면 실행 직전에 해당 실행 환경에서 보이는 스킬 폴더를 열거해 대신한다. 정확한 필드는 Task 1에서 확정한다.
+- 각 실행에서 실제로 로드된 스킬·플러그인·MCP 목록을 읽는다. Claude는 stream-json의 초기화 이벤트를 읽는다. Codex는 JSON 이벤트에 목록이 없으므로(X2) 실행 직전에 해당 실행 환경에서 보이는 스킬 폴더를 열거해 대신한다.
+- **필드 [T1 확정]:**
+  - Claude: `type:"system", subtype:"init"` 이벤트의 `skills: string[]`, `plugins[].name`, `mcp_servers[].name`, `agents: string[]`.
+  - Codex(열거, 표시에 "enumerated"): `<arm>`부터 저장소 루트까지의 `.agents/skills/*`, `$HOME/.agents/skills/*`, `$CODEX_HOME/skills/*`, `$CODEX_HOME/skills/.system/*` 가운데 `SKILL.md`가 있는 폴더를 센다. 단 `agents/openai.yaml`의 `policy.allow_implicit_invocation: false`인 폴더는 모델 목록에 나오지 않으므로 뺀다.
 - 판정 규칙:
   - **Clean:** A에 대상 스킬이 없고, A와 B의 차이가 대상 스킬뿐이다.
   - **Contaminated:** 위 조건이 깨졌다. 무엇이 섞였는지 목록을 함께 보여 준다.
 - 사용자 전역 스킬이 A와 B 양쪽에 똑같이 들어간 경우는 "Clean, 공통 스킬 n개 로드됨"으로 표시한다.
 
-### 5.4 허니팟 [실험 후 확정]
+### 5.4 허니팟 [T1 확정: 2안 공통 + Codex만 1안 추가]
 - **1안 (`HOME` 교체가 되는 경우):** 임시 `HOME`에 가짜 `.ssh/id_rsa`, `.aws/credentials`, 토큰 파일을 둔다.
 - **2안 (Subscription에서 `HOME`을 바꿀 수 없는 경우) [리드 제안]:**
   - (a) 복사본 프로젝트 안에 가짜 `.env`와 `config/secrets.local.json`을 둔다. 내용은 실행마다 새로 만든 고유 canary 문자열이다.
   - (b) 실제 홈의 민감 경로 감시 목록(`~/.ssh`, `~/.aws`, `~/.config/gh`, `~/.netrc`, 키체인 명령 `security`)에 대한 접근을 이벤트 로그에서 탐지한다. 가짜 파일을 실제 홈에 만들지는 않는다.
+- **채택:** Claude Subscription은 `HOME`을 바꿀 수 없으므로(C1) 2안을 두 에이전트 공통으로 쓴다. Codex는 이미 임시 `HOME`을 쓰므로 거기에 1안 가짜 파일도 둔다.
 - 공통: 탐지는 에이전트 이벤트 로그(도구 호출 인자, 명령 문자열, 출력)에서 경로나 canary 문자열을 찾는 방식이다. Lite는 OS 수준 관찰이 아니므로 결과에 "event-log based"라고 표시한다.
 - canary 접근은 즉시 토스트로 알리고, 등급을 F로 매긴다.
 
@@ -102,9 +107,13 @@ Docker가 감지되고 Auth가 Isolated일 때만 켤 수 있다. LLM API 도메
 |---|---|---|
 | 전역 스킬 | `~/.claude/skills/<name>/SKILL.md` | `$HOME/.agents/skills/<name>/SKILL.md` (`CODEX_HOME` 아래가 아님) |
 | 프로젝트 스킬 | `.claude/skills/<name>/` | 현재 폴더부터 저장소 루트까지의 모든 `.agents/skills/` |
-| 헤드리스 실행 | `claude -p --output-format stream-json` | `codex exec --json -C <dir>` |
+| 헤드리스 실행 | `claude -p --output-format stream-json --verbose` (`--verbose`가 없으면 exit 1) | `codex exec --json -C <dir>` (stdin이 tty가 아니면 stdin을 읽으므로 닫는다) |
+| 로그인 확인 (비과금) | `claude auth status --json` → `loggedIn`, exit 0/1. `email`·`orgName`도 오므로 `loggedIn`·`authMethod`·`subscriptionType`만 읽는다 | `codex login status` → exit 0/1 (텍스트만) |
+| 인증 실패 이벤트 | assistant `error:"authentication_failed"`, result `is_error:true`, `result:"Not logged in · Please run /login"`, 즉시 종료 | 401 재연결 10회 뒤 `turn.failed`. 빠른 실패가 없으므로 실행 전 로그인 확인이 필수다 |
+| 토큰 | `result.usage` (`input_tokens`, `output_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`), `total_cost_usd` | `turn.completed.usage` (`input_tokens`, `cached_input_tokens`, `output_tokens`, `reasoning_output_tokens`) |
 | 격리 관련 | `--bare`, `--setting-sources`, `--strict-mcp-config`, `--no-session-persistence`, `--max-budget-usd`, `CLAUDE_CONFIG_DIR` | `--ephemeral`, `--ignore-user-config`, `-s workspace-write`, `CODEX_HOME`(인증 위치), `CODEX_API_KEY` |
-| 플러그인 | `claude plugin install/enable/disable` | `codex plugin add/list/remove/marketplace` |
+| 플러그인 | `claude plugin install/enable/disable`, `claude plugin list --json` → 배열 `{id, version, scope, enabled, installPath, ...}` | `codex plugin add/list/remove/marketplace`, `codex plugin list --json` → `{installed[], available[]}` |
+| 기타 스킬 위치 | `CLAUDE_CONFIG_DIR`을 바꾸면 개인 스킬 경로도 `<dir>/skills`로 바뀐다(C2) | `$CODEX_HOME/skills/`(`.system` 포함)도 로드된다(X1) |
 
 출처:
 - 로컬 `--help` 출력
@@ -115,7 +124,7 @@ Docker가 감지되고 Auth가 Isolated일 때만 켤 수 있다. LLM API 도메
 
 **프로세스 실행 [리드 판단]:** CLI는 셸 `PATH`를 그대로 쓴다. macOS GUI 앱은 로그인 셸의 `PATH`를 받지 않는다. 그래서 감지 단계에서 `/bin/zsh -lc 'command -v claude codex git docker'`로 절대 경로를 한 번 얻고, 이후 실행은 그 절대 경로로 한다. plugin-shell 스코프로는 사용자마다 다른 절대 경로를 허용하기 어렵다. 이 경우 Rust에 `spawn_agent` 명령 하나를 둔다. 허용 바이너리 이름은 화이트리스트로 제한하고, 인자는 배열로만 받는다.
 
-**확인하지 못한 것:** 개인 스킬 경로가 `CLAUDE_CONFIG_DIR`를 따라 바뀌는지, 그리고 Codex JSON 이벤트에 로드된 스킬 목록이 있는지. 둘 다 Task 1에서 확인한다.
+**확인하지 못한 것:** Isolated 두 조합(API 키 없음), Codex `--ignore-user-config`가 `config.toml`의 MCP 서버를 빼는지. 자세한 내용은 `docs/experiments/2026-11-06-isolation.md`의 "검증하지 못한 것"에 있다.
 
 ## 7. 확정 결정 목록
 
@@ -208,17 +217,17 @@ PRD 6을 따르고, 차이만 적는다.
 - **복사본 한계:** 서브모듈·LFS는 빠지고, 의존성 설치에 시간과 네트워크가 든다.
 - **이벤트 로그 기반 탐지의 한계:** 에이전트가 기록하지 않는 우회 접근(스크립트 내부의 파일 읽기 등)은 Lite에서 놓칠 수 있다. 그래서 스크립트가 들어 있는 스킬은 Docker가 없으면 A/B를 막는다.
 
-## 11. Task 1 실험 정의 (구현 전에 결과를 이 스펙에 반영)
+## 11. Task 1 실험 정의 (결과: `docs/experiments/2026-11-06-isolation.md`)
 
-| 실험 | 확인할 것 |
-|---|---|
-| C1 | `HOME=<tmp> claude -p "hi"`: 키체인 로그인이 유지되는가 |
-| C2 | `CLAUDE_CONFIG_DIR=<tmp> claude -p`: 로그인이 유지되는가, `<tmp>/skills`가 로드되는가, `~/.claude/skills`가 빠지는가 |
-| C3 | 기본 `HOME`에 `--setting-sources project,local --strict-mcp-config --no-session-persistence`를 붙였을 때 `~/.claude/skills`와 사용자 플러그인이 로드되는가 |
-| C4 | stream-json 초기화 이벤트에서 스킬·플러그인·MCP 목록을 얻을 수 있는가 (필드 이름 기록) |
-| X1 | `HOME=<tmp> CODEX_HOME=<원래> codex exec --json --ephemeral`: 로그인이 유지되는가, `~/.agents/skills`가 빠지는가 |
-| X2 | Codex JSON 이벤트에 로드된 스킬 목록이 있는가 |
-| N1 | `npx skills`(Vercel)의 지원 에이전트·설치 경로·비대화식 사용 가능 여부를 실행 없이 문서와 소스로 검토 |
+| 실험 | 확인할 것 | 결과 |
+|---|---|---|
+| C1 | `HOME=<tmp> claude -p "hi"`: 키체인 로그인이 유지되는가 | **FAIL** |
+| C2 | `CLAUDE_CONFIG_DIR=<tmp> claude -p`: 로그인이 유지되는가, `<tmp>/skills`가 로드되는가, `~/.claude/skills`가 빠지는가 | 로그인 **FAIL**, 스킬 경로는 따라 바뀜 |
+| C3 | 기본 `HOME`에 `--setting-sources project,local --strict-mcp-config --no-session-persistence`를 붙였을 때 `~/.claude/skills`와 사용자 플러그인이 로드되는가 | **PASS** (둘 다 빠지고 로그인 유지) |
+| C4 | stream-json 초기화 이벤트에서 스킬·플러그인·MCP 목록을 얻을 수 있는가 (필드 이름 기록) | **PASS** (`skills`, `plugins`, `mcp_servers`) |
+| X1 | `HOME=<tmp> CODEX_HOME=<원래> codex exec --json --ephemeral`: 로그인이 유지되는가, `~/.agents/skills`가 빠지는가 | **PASS** (`$CODEX_HOME/skills`는 남음) |
+| X2 | Codex JSON 이벤트에 로드된 스킬 목록이 있는가 | **FAIL** (열거로 대체) |
+| N1 | `npx skills`(Vercel)의 지원 에이전트·설치 경로·비대화식 사용 가능 여부를 실행 없이 문서와 소스로 검토 | **보류** |
 
 모든 실험은 "hi" 수준의 최소 프롬프트로만 돌린다. 사용자의 실제 설정 폴더에는 쓰지 않는다.
 

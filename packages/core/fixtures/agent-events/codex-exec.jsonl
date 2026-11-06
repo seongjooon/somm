@@ -1,0 +1,4 @@
+{"type": "thread.started", "thread_id": "REDACTED"}
+{"type": "turn.started"}
+{"type": "item.completed", "item": {"id": "REDACTED", "type": "agent_message", "text": "imagegen, openai-docs, skill-creator, skill-installer, somm-probe, be, commit-convention, data-analyst, designer, fe, ops-lead, planning-workflow, po, qa, qwen3-tts-mlx, somm-probe-home"}}
+{"type": "turn.completed", "usage": {"input_tokens": 18071, "cached_input_tokens": 0, "cache_write_input_tokens": 0, "output_tokens": 63, "reasoning_output_tokens": 0}}
