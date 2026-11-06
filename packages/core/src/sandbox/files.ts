@@ -44,11 +44,36 @@ export async function findDeps(p: Platform, dir: string, relative = ''): Promise
   }
   return found;
 }
+// Resolve symlinks component by component (Fs has no realpath); missing tails are kept as-is.
+export async function realPath(p: Platform, path: string): Promise<string> {
+  const pending = path.split('/'), resolved: string[] = [];
+  let hops = 0;
+  while (pending.length) {
+    const part = pending.shift()!;
+    if (!part || part === '.') continue;
+    if (part === '..') { resolved.pop(); continue; }
+    let entry;
+    try { entry = (await p.fs.readDir('/' + resolved.join('/'))).find(e => e.name === part); } catch { entry = undefined; }
+    if (!entry) { resolved.push(part, ...pending.filter(x => x && x !== '.')); break; }
+    if (entry.isSymlink) {
+      if (++hops > 40) throw new Error('Symlink cycle in path');
+      const next = await p.fs.readlink('/' + [...resolved, part].join('/'));
+      if (next.startsWith('/')) resolved.length = 0;
+      pending.unshift(...next.split('/'));
+    } else resolved.push(part);
+  }
+  return '/' + resolved.join('/');
+}
 // Resolve each component before processing '..', matching filesystem symlink semantics.
-export async function checkLinks(p: Platform, dir: string, root: string, protectedDirs: string[]): Promise<void> {
+export async function checkLinks(p: Platform, dir: string, root: string, protectedInput: string[]): Promise<void> {
+  const protectedDirs = [...protectedInput, ...await Promise.all(protectedInput.map(d => realPath(p, d)))];
+  await scan(p, dir, root, protectedDirs);
+}
+async function scan(p: Platform, dir: string, root: string, protectedDirs: string[]): Promise<void> {
+  const resolveAbs = (target: string) => realPath(p, target);
   // Absolute links to system paths (e.g. .venv/bin/python) are kept; links into the project or home are not.
-  const absolute = (target: string) => {
-    const path = target.replace(/\/+$/, '');
+  const absolute = async (target: string) => {
+    const path = (await resolveAbs(target)).replace(/\/+$/, '');
     if (protectedDirs.some(d => { d = d.replace(/\/+$/, ''); return path === d || path.startsWith(`${d}/`) || d.startsWith(`${path}/`) || path === ''; })) {
       throw new Error('Dependency symlink points into project or home');
     }
@@ -83,6 +108,6 @@ export async function checkLinks(p: Platform, dir: string, root: string, protect
   for (const entry of await p.fs.readDir(dir)) {
     const path = `${dir}/${entry.name}`;
     if (entry.isSymlink) await resolve(await p.fs.readlink(path), dir);
-    else if (entry.isDir) await checkLinks(p, path, root, protectedDirs);
+    else if (entry.isDir) await scan(p, path, root, protectedDirs);
   }
 }
