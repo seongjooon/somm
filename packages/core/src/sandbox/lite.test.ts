@@ -369,3 +369,46 @@ test('dependency symlink into a project reached through a symlinked parent is re
   const { deps } = await createLiteSandbox(p, { git: 'git' }).prepare(aliased, 'alias');
   expect(deps.mode).not.toBe('cloned');
 });
+async function linkRejected(link: (real: string) => string | Promise<string>, extra?: (dir: string) => Promise<void>) {
+  await fixture({ 'pnpm-lock.yaml': 'lock' });
+  const real = (await p.proc.run('pwd', ['-P'], { cwd: project })).stdout.trim();
+  await fs.mkdirp(`${project}/node_modules`);
+  await extra?.(`${project}/node_modules`);
+  await fs.symlink(await link(real), `${project}/node_modules/escape`);
+  const { deps } = await createLiteSandbox(p, { git: 'git' }).prepare(project, 'lnk');
+  expect(deps.mode).not.toBe('cloned');
+}
+test('rejects a link that continues through an earlier absolute hop', () => linkRejected(
+  () => 'a/../../공백 한글 프로젝트/main.txt',
+  async dir => { await fs.mkdirp(`${root}/outside/sub`); await fs.symlink(`${root}/outside/sub`, `${dir}/a`); }));
+test('rejects dependency links using different case', () => linkRejected(real => `${real.toUpperCase()}/main.txt`));
+test('rejects dependency links through the macOS data firmlink', () => linkRejected(real => `/System/Volumes/Data${real}/main.txt`));
+test('concurrent diffStat calls on one arm succeed', async () => {
+  await fixture();
+  const sandbox = createLiteSandbox(p, bins);
+  const { base } = await sandbox.prepare(project, 'conc');
+  const arms = await sandbox.split(base, ['a']);
+  await fs.writeText(`${arms.a}/main.txt`, 'changed\n');
+  const [x, y] = await Promise.all([sandbox.diffStat(arms.a), sandbox.diffStat(arms.a)]);
+  expect(x).toMatchObject({ files: 1 }); expect(y).toEqual(x);
+});
+test('a poisoned base git config and attributes never execute during diffStat', async () => {
+  await fixture();
+  const sandbox = createLiteSandbox(p, bins);
+  const { base } = await sandbox.prepare(project, 'poison');
+  const arms = await sandbox.split(base, ['a']);
+  const marker = `${root}/marker-base`, script = await evilScript(marker);
+  await fs.writeText(`${base}/.git/config`, `[core]\n\tfsmonitor = ${script}\n[filter "x"]\n\tclean = ${script}\n`);
+  await fs.writeText(`${base}/.git/info/attributes`, '* filter=x\n');
+  await fs.writeText(`${arms.a}/main.txt`, 'changed\n');
+  await sandbox.diffStat(arms.a);
+  expect(await fs.exists(marker)).toBe(false);
+});
+test('inherited GIT_DIR does not redirect sandbox git calls', async () => {
+  await fixture();
+  const seen: string[] = [];
+  const spy: Platform = { ...p, proc: { ...p.proc, run: (bin, args, opts) => { seen.push(String(opts?.env?.GIT_DIR)); return p.proc.run(bin, args, opts); } } };
+  await createLiteSandbox(spy, bins).prepare(project, 'envs');
+  expect(seen.length).toBeGreaterThan(0);
+  expect(seen).toContain('null');
+});

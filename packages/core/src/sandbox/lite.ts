@@ -16,10 +16,15 @@ export function createLiteSandbox(p: Platform, bins: Record<string, string | nul
   const active = new Map<string, SandboxWarning[]>();
   const gitBin = bins.git || 'git';
   // nodeProc merges env into process.env, so PATH is inherited.
-  async function git(cwd: string, args: string[], env: Record<string, string> = {}) {
-    const result = await p.proc.run(gitBin, ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false',
+  const configs = new Map<string, string>();
+  const scrub = Object.fromEntries(['GIT_DIR', 'GIT_WORK_TREE', 'GIT_EXTERNAL_DIFF', 'GIT_ASKPASS', 'GIT_SSH_COMMAND', 'GIT_PAGER'].map(k => [k, null]));
+  async function gitRun(cwd: string, args: string[], env: Record<string, string> = {}) {
+    return p.proc.run(gitBin, ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false',
       '-c', 'core.attributesFile=/dev/null', '-c', 'commit.gpgsign=false', '-c', 'core.excludesFile=/dev/null', ...args],
-    { cwd, env: { ...SANDBOX_GIT_ENV, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', ...env } });
+    { cwd, env: { ...scrub, ...SANDBOX_GIT_ENV, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', ...env } });
+  }
+  async function git(cwd: string, args: string[], env: Record<string, string> = {}) {
+    const result = await gitRun(cwd, args, env);
     if (result.code !== 0) throw new Error(`Sandbox git ${args[0]} failed`);
     return result.stdout;
   }
@@ -66,7 +71,7 @@ export function createLiteSandbox(p: Platform, bins: Record<string, string | nul
         await p.fs.mkdirp(base);
         created = true;
         const noLocks = { GIT_OPTIONAL_LOCKS: '0' };
-        const probe = await p.proc.run(gitBin, ['rev-parse', '--show-toplevel'], { cwd: projectDir, env: noLocks });
+        const probe = await gitRun(projectDir, ['rev-parse', '--show-toplevel'], noLocks);
         if (probe.code === 0) {
           if ((await git(projectDir, ['rev-parse', '--show-prefix'], noLocks)).trim()) throw new Error('Select the repository root');
           if ((await git(projectDir, ['status', '--porcelain'], noLocks)).trim()) warn(warnings, 'uncommitted-changes');
@@ -95,6 +100,7 @@ export function createLiteSandbox(p: Platform, bins: Record<string, string | nul
         await git(base, ['add', '-Af', '--', '.',
           ...[...excluded].filter(x => x !== '.git').map(x => `:(glob,exclude)**/${x}/**`)]);
         await git(base, ['commit', '--allow-empty', '-qm', 'baseline']);
+        configs.set(runId, await p.fs.readText(`${base}/.git/config`));
         return { base, deps, warnings };
       } catch (error) {
         if (created) await p.fs.remove(root);
@@ -143,7 +149,10 @@ export function createLiteSandbox(p: Platform, bins: Record<string, string | nul
       if (!arm || arm.includes('/') || arm === 'base') throw new Error('Expected sandbox arm');
       // Never touch the arm's own .git (agent-controlled): use the base git dir with the arm as work tree and a throwaway index.
       // Accepted limitation: an arm .gitignore can hide its own changes; ignored files are not force-added.
-      const index = `${runs}/${runId}/.index-${arm}`;
+      // The base is unsandboxed too: restore its trusted config and drop attributes before every use.
+      await p.fs.writeText(`${runs}/${runId}/base/.git/config`, configs.get(runId)!);
+      await p.fs.remove(`${runs}/${runId}/base/.git/info/attributes`);
+      const index = `${runs}/${runId}/.index-${arm}-${crypto.randomUUID()}`;
       const g = (args: string[]) => git(armDir, ['--git-dir', `${runs}/${runId}/base/.git`, '--work-tree', armDir, ...args], { GIT_INDEX_FILE: index });
       let numstat: string, patch: string;
       try {
@@ -151,7 +160,7 @@ export function createLiteSandbox(p: Platform, bins: Record<string, string | nul
         await g(['add', '-A']);
         numstat = await g(['diff', '--cached', '--no-ext-diff', '--no-textconv', '--numstat', 'HEAD', '--']);
         patch = await g(['diff', '--cached', '--no-ext-diff', '--no-textconv', 'HEAD', '--']);
-      } finally { await p.fs.remove(index); }
+      } finally { for (const f of [index, `${index}.lock`]) await p.fs.remove(f).catch(() => {}); }
       let files = 0, added = 0, removed = 0;
       for (const line of numstat.trim().split('\n').filter(Boolean)) {
         const [a, r] = line.split('\t'); files++;
@@ -165,6 +174,7 @@ export function createLiteSandbox(p: Platform, bins: Record<string, string | nul
       await owned(root);
       await p.fs.remove(root);
       active.delete(runId);
+      configs.delete(runId);
     },
   };
 }
