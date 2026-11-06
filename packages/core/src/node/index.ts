@@ -9,7 +9,7 @@ export async function createNodePlatform(): Promise<Platform> {
   const env = { ...process.env };
   const dataDir = resolveDataDir(env, home);
   await nodeFs.mkdirp(dataDir);
-  const database = new DatabaseSync(join(dataDir, 'somm.db'));
+  const database = new DatabaseSync(join(dataDir, 'somm.db'), { timeout: 5000 });
   const db: Db = {
     async select<T>(sql: string, params: unknown[] = []) { return database.prepare(sql).all(...params as SQLInputValue[]) as T[]; },
     async execute(sql, params = []) { database.prepare(sql).run(...params as SQLInputValue[]); },

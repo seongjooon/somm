@@ -25,6 +25,7 @@ test('initializes the real Node database idempotently with WAL', async () => {
   try {
     const { db } = await createNodePlatform();
     await migrate(db);
+    expect(await db.select('PRAGMA busy_timeout')).toEqual([{ timeout: 5000 }]);
     expect(await db.select('PRAGMA user_version')).toEqual([{ user_version: 1 }]);
     expect(await db.select('PRAGMA journal_mode')).toEqual([{ journal_mode: 'wal' }]);
     expect(await db.select("SELECT name FROM sqlite_master WHERE type='table'")).toHaveLength(5);
