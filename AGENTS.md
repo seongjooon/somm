@@ -3,17 +3,19 @@
 ## Project
 somm: a desktop "app store + fitting room" for agent skills.
 Browse skills from many sources, A/B test them in a sandbox on the user's own project, check security, then one-click install into Claude Code or Codex.
-Mascot: **Sir Somm**, a monocled sommelier. Result lines use `// somm: pairs well` (pass) and `// somm: corked` (blocked).
+Mascot: **Sir Somm**, a monocled sommelier. Verdict lines: `// somm: pairs well` (recommend), `// somm: needs to breathe` (conditional), `// somm: corked` (not recommended or blocked).
 Source of truth: `docs/PRD.md`. Read it before planning. Do not build anything listed under "MVP excluded".
 
 ## Stack
-- Tauri 2 + Svelte 5 + TypeScript + Tailwind CSS, SQLite via tauri-plugin-sql
+- pnpm workspace monorepo: `packages/core` (pure TS engine), `apps/desktop` (Tauri 2 + Vite + Svelte 5 + Tailwind CSS), `apps/cli` (Node CLI `somm`).
+- All store, scan, sandbox, A/B and install logic lives in `packages/core`. Apps only display.
+- SQLite shared by both apps: tauri-plugin-sql (desktop), `node:sqlite` (CLI).
 - Logic lives in TypeScript. Keep Rust to plugin registration and commands that truly need it.
 - Prefer official Tauri plugins (shell, fs, sql, http) over custom Rust.
 
 ## Token-saving rules
-- Max ~300 lines per file. Split by feature: `src/features/<name>/`.
-- All external integrations (agents, sources, docker, scanners) go behind one interface in `src/adapters/`.
+- Max ~300 lines per file. Split by feature: `packages/core/src/<area>/`, `apps/desktop/src/features/<name>/`, `apps/cli/src/commands/<name>.ts`.
+- File, process and DB access go through the `packages/core/src/platform/` interfaces. External integrations (agents, sources, sandbox) live in their own core folder behind one interface each.
 - Minimal dependencies. No large UI component libraries.
 - No speculative abstractions, config options, or comments that restate code.
 - Read only the files you need. Do not dump whole directories.

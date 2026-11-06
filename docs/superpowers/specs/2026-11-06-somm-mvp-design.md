@@ -11,7 +11,7 @@ Claude Code·Codex 사용자가 흩어진 스킬을 한곳에서 찾고, **설�
 
 ## 2. 목표 / 비목표 / 반목표
 
-**목표 (MVP):** 스토어, 상세(정적 보안 검사), Lite 샌드박스 A/B 테스트와 결과 리포트, Claude Code·Codex 설치 관리. Docker 샌드박스와 공유 카드는 MVP 후반에 붙인다.
+**목표 (MVP):** 스토어, 상세(정적 보안 검사), Lite 샌드박스 A/B 테스트와 결과 리포트, Claude Code·Codex 설치 관리. **같은 엔진을 데스크톱 GUI와 CLI(`somm`) 두 가지로 제공한다 [결정].** Docker 샌드박스와 공유 카드는 MVP 후반에 붙인다.
 
 **비목표:** PRD 5의 제외 항목(AI 비서, 클라우드 샌드박스, 팀, 결제, 계정, 다른 에이전트), skills.sh 연동과 Vercel 경유 크롤러, LLM README 요약, 무료 모델(OmniRoute 등) 판정, 텔레메트리, Windows·Linux 검증.
 
@@ -42,6 +42,7 @@ Claude Code·Codex 사용자가 흩어진 스킬을 한곳에서 찾고, **설�
 | | **Thorough** | A와 B를 각 3회 실행하고 평균과 편차를 표시한다 |
 
 - **Secure(Docker) 샌드박스는 Isolated에서만 허용한다.** Docker 안에서는 키체인 로그인을 쓸 수 없기 때문이다.
+- **판정 문구 3종 [결정]:** 추천 → `// somm: pairs well`, 조건부 → `// somm: needs to breathe`, 비추천 또는 F → `// somm: corked`.
 - **Subscription + Thorough를 고르면** 시작 전에 한 번 더 경고한다: "구독 사용량 6회분이 차감됩니다. 구독 한도는 개인 사용을 전제로 합니다."
 - **Isolated의 API 키 [리드 판단]:** 앱 세션 동안 메모리에만 둔다. 디스크, DB, 로그에 쓰지 않고 해당 CLI 자식 프로세스의 환경 변수로만 넘긴다. 앱을 재시작하면 다시 입력한다. 이렇게 해야 3번 원칙과 충돌하지 않는다.
 - **사용량 안내 [결정 + 리드 판단]:** 시작 전에 다음을 보여 준다.
@@ -52,13 +53,19 @@ Claude Code·Codex 사용자가 흩어진 스킬을 한곳에서 찾고, **설�
 ## 5. 샌드박스
 
 ### 5.1 Lite (기본)
-1. **복사본 만들기 [결정]:** 사용자 저장소에 `git worktree add`를 쓰지 않는다. `git archive HEAD`를 `appDataDir/runs/<runId>/base`에 풀고 `git init`과 기준 커밋을 만든다 [리드 판단: `clone --local`보다 원본 경로·리모트와의 연결이 남지 않는다].
+1. **복사본 만들기 [결정]:** 사용자 저장소에 `git worktree add`를 쓰지 않는다. `git archive HEAD`를 데이터 폴더의 `runs/<runId>/base`에 풀고 `git init`과 기준 커밋을 만든다 [리드 판단: `clone --local`보다 원본 경로·리모트와의 연결이 남지 않는다].
    - 커밋 안 된 변경은 경고만 하고 포함하지 않는다 [결정].
    - git 저장소가 아니면 폴더를 그대로 복사한 뒤 `git init`한다.
    - 알려진 한계: `git archive`는 서브모듈과 LFS 본문을 담지 않는다. 이 경우 경고를 표시한다.
-2. 의존성 설치는 `base`에서 한 번만 한다 (lockfile 감지: `pnpm`/`npm`/`yarn`/`uv`/`pip`). 그다음 `base` 안에서 `git worktree add`로 A와 B를 나눈다. 이 worktree는 우리 복사본 안의 것이라 사용자 저장소와 무관하다.
-3. B에만 대상 스킬을 프로젝트 스코프로 넣는다: Claude는 `.claude/skills/<name>/`, Codex는 `.agents/skills/<name>/`.
-4. 실행이 끝나면 diff, 지표, 이벤트 로그를 DB에 저장하고 `runs/<runId>`는 지운다. 보관 옵션은 두지 않는다.
+2. **비밀 파일 제거:** 복사본에서 `.env`, `.env.*`(`.env.example` 제외), `*.pem`, `*.key`, `id_rsa*`, `.npmrc`, `.pypirc`를 지운다. git에 추적된 파일이어도 지우고 경고한다. 허니팟은 그 뒤에 심는다.
+3. **의존성 [리드 제안: 원본에서 APFS 복제 우선, 안 되면 재설치]:**
+   - **기본:** 원본의 의존성 폴더(`node_modules`(루트와 워크스페이스 하위 패키지), `.venv`, `venv`)를 `cp -c`(APFS clonefile)로 `base`에 가져온다. 이유: 디스크를 거의 쓰지 않고 빠르며, 네트워크·사설 레지스트리가 필요 없고, 사용자가 실제로 쓰는 환경과 같다.
+   - **재설치로 전환하는 경우:** 의존성 폴더가 없을 때, 또는 작업 트리의 lockfile이 `HEAD`의 lockfile과 다를 때(복제본이 `HEAD` 코드와 맞지 않음)는 lockfile 기준으로 설치한다: `pnpm install --frozen-lockfile`, `npm ci`, `yarn install --frozen-lockfile`, `uv sync`.
+   - Python은 복제한 `.venv`의 스크립트 shebang이 원본 경로를 가리키므로, 테스트는 항상 `<arm>/.venv/bin/python -m pytest`(또는 `-m unittest`) 형태로 실행한다.
+   - 다른 APFS 볼륨이라 `cp -c`가 실패하면 `cp -R`로 복사하고 "느린 복사" 경고를 표시한다.
+4. `base`를 `cp -cR`로 복제해 A와 B 폴더를 만든다(`git worktree`는 추적 파일만 담아 의존성 폴더가 빠지므로 쓰지 않는다). 각 폴더는 기준 커밋을 가진 독립 저장소다.
+5. B에만 대상 스킬을 프로젝트 스코프로 넣는다: Claude는 `.claude/skills/<name>/`, Codex는 `.agents/skills/<name>/`.
+6. 실행이 끝나면 diff, 지표, 이벤트 로그를 DB에 저장하고 `runs/<runId>`는 지운다. 보관 옵션은 두지 않는다.
 
 ### 5.2 사용자 전역 설정과의 격리 [실험]
 Task 1 결과에 따라 아래 중 가능한 조합을 쓴다.
@@ -81,6 +88,11 @@ Task 1 결과에 따라 아래 중 가능한 조합을 쓴다.
 - 공통: 탐지는 에이전트 이벤트 로그(도구 호출 인자, 명령 문자열, 출력)에서 경로나 canary 문자열을 찾는 방식이다. Lite는 OS 수준 관찰이 아니므로 결과에 "event-log based"라고 표시한다.
 - canary 접근은 즉시 토스트로 알리고, 등급을 F로 매긴다.
 
+### 5.4.1 보안 등급 정의 [결정]
+- **정적 검사가 줄 수 있는 등급은 A~D다.** 문제가 없는 스킬은 정적 검사만으로 A(또는 경미한 항목만 있으면 B)를 받고 [바로 설치]가 가능하다.
+- **F는 정적 검사로는 주지 않는다.** F는 동적 관찰의 확정 증거(canary 접근, 허니팟 유출)가 있을 때만 매긴다. 정적 검사에서 아무리 위험한 패턴이 나와도 D까지이고, 이때 [바로 설치]는 꺼지고 "테스트 후 설치" 경로만 남는다.
+- 설치 가능 범위: A·B → [바로 설치], C·D → 테스트를 거쳤거나 경고를 확인한 뒤 설치, F → 모든 설치 차단.
+
 ### 5.5 Secure (선택, MVP 후반)
 Docker가 감지되고 Auth가 Isolated일 때만 켤 수 있다. LLM API 도메인만 허용하고, 그 밖의 네트워크·파일·프로세스 활동은 기록한다. Docker가 없을 때 스크립트·훅·MCP가 들어 있는 스킬은 "정적 검사만 가능"으로 표시하고 A/B 버튼을 끈다 [결정].
 
@@ -101,7 +113,7 @@ Docker가 감지되고 Auth가 Isolated일 때만 켤 수 있다. LLM API 도메
 - https://learn.chatgpt.com/docs/build-skills
 - https://developers.openai.com/codex/noninteractive.md
 
-**프로세스 실행 [리드 판단]:** macOS GUI 앱은 로그인 셸의 `PATH`를 받지 않는다. 그래서 감지 단계에서 `/bin/zsh -lc 'command -v claude codex git docker'`로 절대 경로를 한 번 얻고, 이후 실행은 그 절대 경로로 한다. plugin-shell 스코프로는 사용자마다 다른 절대 경로를 허용하기 어렵다. 이 경우 Rust에 `spawn_agent` 명령 하나를 둔다. 허용 바이너리 이름은 화이트리스트로 제한하고, 인자는 배열로만 받는다.
+**프로세스 실행 [리드 판단]:** CLI는 셸 `PATH`를 그대로 쓴다. macOS GUI 앱은 로그인 셸의 `PATH`를 받지 않는다. 그래서 감지 단계에서 `/bin/zsh -lc 'command -v claude codex git docker'`로 절대 경로를 한 번 얻고, 이후 실행은 그 절대 경로로 한다. plugin-shell 스코프로는 사용자마다 다른 절대 경로를 허용하기 어렵다. 이 경우 Rust에 `spawn_agent` 명령 하나를 둔다. 허용 바이너리 이름은 화이트리스트로 제한하고, 인자는 배열로만 받는다.
 
 **확인하지 못한 것:** 개인 스킬 경로가 `CLAUDE_CONFIG_DIR`를 따라 바뀌는지, 그리고 Codex JSON 이벤트에 로드된 스킬 목록이 있는지. 둘 다 Task 1에서 확인한다.
 
@@ -112,13 +124,13 @@ Docker가 감지되고 Auth가 Isolated일 때만 켤 수 있다. LLM API 도메
 | 1 | 계획 범위 | PRD 구현 순서 1~5단계는 자세히, 6단계(Docker)와 7단계(공유 카드)는 개요만 쓴다 |
 | 2 | OS | MVP 검증은 macOS만 한다 |
 | 3 | 도구 | pnpm, Vitest를 쓰고, `cargo test`는 최소한으로만 쓴다 |
-| 4 | 데이터 위치 | Tauri `appDataDir`에 DB, `backups/`, `disabled/`, `runs/`를 둔다 |
+| 4 | 데이터 위치 | GUI와 CLI가 같은 폴더를 쓴다: `SOMM_DATA_DIR`가 있으면 그 값, 없으면 macOS `~/Library/Application Support/io.github.seongjooon.somm`(Tauri identifier와 같은 값). 그 아래 `somm.db`, `backups/`, `disabled/`, `runs/`, `cache/` [결정 + 리드 판단: identifier] |
 | 5 | A/B 기준 코드 | 5.1을 따른다 |
 | 6 | 테스트 명령 감지 | `package.json`의 `scripts.test`, `pytest`, `cargo test`, `go test` 순서로 찾고, 없으면 N/A |
 | 7 | 허니팟 | 5.4를 따른다 |
 | 8 | 작업 후보 3개, 판정 | 둘 다 사용자가 고른 에이전트의 작은 모델로 돌리고, 사용량 안내에 포함한다 |
 | 9 | 요약 | SKILL.md의 `description`과 README 첫 문단을 쓰고, LLM은 쓰지 않는다 |
-| 10 | 보안 등급 | 규칙은 `rules/security/*.yaml`, 가중치 합산으로 A~F를 매긴다. F는 설치를 차단하고, B 이상만 [바로 설치]가 켜진다. 엔진은 TS 하나로 만든다 |
+| 10 | 보안 등급 | 5.4.1을 따른다. 규칙은 `packages/core/rules/security/*.yaml`이고, 정적 가중치 합산으로 A~D를 매긴다 |
 | 11 | 설치 | 기본은 복사, 고급 옵션은 심볼릭 링크다. 설치 전 `backups/<ts>`에 백업한다. 플러그인은 CLI를 호출한다 |
 | 12 | 끄기 | 스킬 폴더를 `disabled/<agent>/<scope>/<name>`으로 옮긴다 |
 | 13 | `npx skills` | Task 1에서 설치 엔진으로 쓸 수 있는지 검토한다. 그전까지는 자체 복사 설치를 쓴다 |
@@ -126,36 +138,51 @@ Docker가 감지되고 Auth가 Isolated일 때만 켤 수 있다. LLM API 도메
 | 15 | Codex 카탈로그 | 크롤러 단계에서 출처를 확인한다 |
 | 16 | 재배포 | `index.json`에는 메타데이터만 담고, 스킬 본문은 앱이 원본에서 직접 받는다 |
 | 17 | 텔레메트리 | 넣지 않는다 |
-| 18 | i18n | 직접 만든 `t()`를 쓴다. 공통 키는 `src/i18n/{en,ko}.json`, 기능별 키는 `src/features/<name>/i18n.{en,ko}.json` (병렬 충돌 방지) |
+| 18 | i18n | GUI는 직접 만든 `t()`를 쓴다. 공통 키는 `apps/desktop/src/i18n/{en,ko}.json`, 기능 키는 `apps/desktop/src/features/<name>/i18n.{en,ko}.json`(병렬 충돌 방지). CLI 출력은 MVP에서 영어만 |
 | 19 | 데모 저장소 | `demos/ts-mini`, `demos/py-mini`를 각각 테스트를 포함한 소형으로 만든다 |
-| 20 | 충돌 경고 | 같은 이름, 같은 커맨드, 방법론 키워드가 겹치면 경고한다. 규칙은 `rules/conflicts.yaml` |
+| 20 | 충돌 경고 | 같은 이름, 같은 커맨드, 방법론 키워드가 겹치면 경고한다. 규칙은 `packages/core/rules/conflicts.yaml` |
 | 21 | 디자인 시스템 | 첫 UI 태스크 전에 ui-ux-pro-max로 `docs/design-system.md`를 만든다. Raycast 톤, 다크 모드 기본, `#8B1E3F` |
 | 22 | 출시 전 체크리스트 | 13절을 따른다 |
 | 23 | 무료 모델 판정 | 나중 단계 |
-| 24 | `index.json` | 개발 중에는 `fixtures/index.sample.json`을 쓴다. 오픈소스 공개 때 저장소를 public으로 바꾸고 `crawler/`와 gh-pages 배포를 켠다 [결정] |
+| 24 | `index.json` | 개발 중에는 `packages/core/fixtures/index.sample.json`을 쓴다. 오픈소스 공개 때 저장소를 public으로 바꾸고 `crawler/`와 gh-pages 배포를 켠다 [결정] |
+| 25 | 저장소 구조 | pnpm 워크스페이스 모노레포: `packages/core`, `apps/desktop`, `apps/cli` [결정]. 8절 참조 |
+| 26 | CLI | 8.1절 참조. npm 패키지 이름은 `somm`(2026-11-06 기준 미등록 확인, 이름 유사성 규칙은 첫 배포 때만 최종 확인됨) [결정 + 확인] |
 
-## 8. 구조
+## 8. 구조 [결정]
 
 ```
-src/
-  lib/types.ts          공용 타입 (Skill, AgentId, Scope, RunOptions, RunResult, Grade…)
-  lib/db.ts             SQLite 접근 (tauri-plugin-sql)
-  lib/proc.ts           자식 프로세스 실행/스트림 (plugin-shell 래퍼)
-  i18n/                 en.json, ko.json, t.ts
-  adapters/agents/      types.ts(AgentAdapter), claude.ts, codex.ts
-  adapters/sources/     types.ts(SourceAdapter), sample.ts  (github.ts, official.ts는 공개 시점)
-  adapters/sandbox/     types.ts(Sandbox), lite.ts  (docker.ts는 후반)
-  scan/                 정적 검사 엔진 (앱과 크롤러가 공유)
-  features/store|detail|runner|results|installs/
-rules/security/*.yaml, rules/conflicts.yaml
-fixtures/index.sample.json
+pnpm-workspace.yaml, package.json(루트 스크립트), tsconfig.base.json
+packages/core/            순수 TS 엔진. UI·Tauri·Node 전용 API에 의존하지 않는다
+  src/types.ts            공용 타입
+  src/platform/           Fs, Proc, Db, Paths 인터페이스 + DB 스키마/마이그레이션
+  src/node/               Node 구현(Fs/Proc/Db=node:sqlite). 하위 경로 `@somm/core/node`로 내보낸다. CLI와 core 테스트가 쓴다
+  src/agents/             AgentAdapter: claude, codex (감지, 설치/삭제/끄기, 실행 명세, 이벤트 파싱)
+  src/sources/            SourceAdapter(sample), 랭킹, 스킬 파일 가져오기
+  src/scan/               정적 검사 엔진, 특성 추출, 충돌 검사
+  src/sandbox/            Lite 샌드박스 (docker는 후반)
+  src/runner/             A/B 실행 엔진, 지표, 오염 판정, 사용량 추정, 판정
+  rules/, fixtures/
+apps/desktop/             Tauri 2 + Vite + Svelte 5. 표시만 한다
+  src/platform/           Tauri 구현(Fs=plugin-fs, Proc=Rust spawn_agent, Db=plugin-sql)
+  src/features/<name>/, src/ui/, src/i18n/
+  src-tauri/              플러그인 등록, capability, 화이트리스트 실행 명령
+apps/cli/                 Node CLI `somm`. 표시만 한다
+  src/commands/<name>.ts, src/output.ts
 demos/ts-mini, demos/py-mini
-src-tauri/              플러그인 등록과 capability(shell 허용 프로그램, fs 스코프)
 ```
 
-- **AgentAdapter:** `detect()`, `listInstalled()`, `install()`, `uninstall()`, `run(task, env) → AsyncIterable<AgentEvent>`, `loadedInventory(events)`
-- **SourceAdapter:** `fetchIndex() → Skill[]`
-- **Sandbox:** `prepare(project) → base`, `split(base) → {a, b}`, `cleanup()`
+- **의존 방향:** `apps/*` → `packages/core`. core는 apps를 모른다. core의 플랫폼 접근은 전부 `platform/` 인터페이스로 주입받는다.
+- **[리드 판단]:** Node 구현을 `apps/cli`가 아니라 `packages/core/src/node`에 둔다. core 자체 테스트가 실제 git·파일 시스템으로 돌아야 하고, 테스트가 apps에 의존하면 방향이 뒤집히기 때문이다.
+- **[리드 판단]:** 보안 규칙 YAML은 `pnpm --filter @somm/core gen:rules`로 `src/scan/rules.generated.ts`(문자열)로 변환해 커밋한다. Vite와 Node에서 똑같이 불러오기 위해서다. 생성물이 최신인지는 테스트로 확인한다.
+- **DB 공유:** 같은 `somm.db`를 GUI(plugin-sql)와 CLI(`node:sqlite`)가 연다. WAL 모드를 쓰고, 마이그레이션은 core의 `migrate(db)`가 `PRAGMA user_version`으로 관리한다.
+
+### 8.1 CLI [결정]
+- 명령: `search <query>`, `scan <skill|path>`, `test <skill> --project <dir> --agent claude|codex --runs quick|thorough --auth subscription|isolated`, `install <skill> --agent --scope global|project`, `list`, `remove <name> --agent --scope`.
+- 사람용 출력의 첫 줄은 항상 `// somm: ...`이다. 예: `// somm: 12 skills found`, `// somm: pairs well`, `// somm: corked`.
+- 모든 명령에 `--json`이 있다. **[리드 판단]** `--json`일 때는 JSON 파싱이 깨지지 않도록 주석 줄을 찍지 않고, 같은 문구를 `"somm"` 필드에 넣은 JSON 하나만 출력한다.
+- `test`는 시작 전에 GUI와 같은 사용량 안내를 출력하고 확인을 받는다(`--yes`로 생략). Subscription + Thorough 경고도 같다. Isolated의 API 키는 `ANTHROPIC_API_KEY`/`CODEX_API_KEY` 환경 변수에서만 받는다(CLI 인자로 받지 않음: 셸 기록에 남기 때문).
+- 종료 코드: 0 성공, 1 실행 오류, 2 차단(F 또는 corked).
+- 배포: esbuild로 core를 포함한 단일 `dist/cli.js`를 만들고, `bin: { somm }`으로 내보낸다.
 
 ## 9. 화면별 동작 요약
 
@@ -163,7 +190,7 @@ PRD 6을 따르고, 차이만 적는다.
 - **스토어:** 샘플 `index.json`으로 동작한다. Hot 탭은 스냅샷 기간이 부족하면 숨긴다.
 - **상세:** 요약은 7절의 9번(LLM 없음)을 따른다. 정적 검사 결과를 즉시 표시한다. [바로 설치]는 B 이상일 때만 켜진다.
 - **테스트 실행:** Auth와 Runs를 고른 뒤 사용량 안내를 보고 시작한다. Subscription + Thorough는 추가 경고를 띄운다. 오른쪽 패널은 이벤트 로그이고, canary 접근은 토스트로 알린다.
-- **결과:** 지표 비교(Thorough는 평균 ± 편차), **A/B 오염 여부**, 한 줄 판정, diff, 보안 리포트를 보여 준다. 판정 문구 끝에 `// somm: pairs well` 또는 `// somm: corked`를 붙인다.
+- **결과:** 지표 비교(Thorough는 평균 ± 편차), **A/B 오염 여부**, 한 줄 판정, diff, 보안 리포트를 보여 준다. 판정 문구 끝에 4절의 판정 문구 3종 중 하나를 붙인다.
 - **설치 관리:** 감지된 에이전트별 목록(외부에서 설치한 것 포함), 끄기·켜기, 삭제, hash 비교, 충돌 경고.
 
 ## 10. 리스크
@@ -211,3 +238,4 @@ PRD 6을 따르고, 차이만 적는다.
 - [ ] README에 3번 원칙 문장 넣기
 - [ ] 저장소 public 전환, `crawler/`와 gh-pages 배포 켜기, 앱 기본 출처를 실제 `index.json`으로 바꾸기
 - [ ] MIT 라이선스 파일 추가
+- [ ] npm `somm` 이름 확보(첫 배포 또는 사용자 승인 후 placeholder 배포)

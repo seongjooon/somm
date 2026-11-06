@@ -205,7 +205,7 @@
 - [ ] Docker 안에서 Claude Code·Codex를 어떻게 인증할지 (구독 로그인 vs API 키)
 - [ ] skills.sh API 인증 방식(Vercel OIDC)을 크롤러에 어떻게 붙일지
 - [ ] 각 출처의 이용 약관과 재배포 정책 확인
-- [x] 이름 확정: 프로젝트 **somm**, 캐릭터 **Sir Somm** (외눈 안경 소믈리에). 결과 문구 `// somm: pairs well`, 거절 `// somm: corked`
+- [x] 이름 확정: 프로젝트 **somm**, 캐릭터 **Sir Somm** (외눈 안경 소믈리에). 판정 문구 추천 `// somm: pairs well`, 조건부 `// somm: needs to breathe`, 비추천·차단 `// somm: corked`
 
 ---
 
