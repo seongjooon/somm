@@ -41,7 +41,7 @@ Source of truth: `docs/PRD.md`. Read it before planning. Do not build anything l
 ## Tooling
 - superpowers: use only brainstorming, writing-plans, systematic-debugging, test-driven-development, and the code review skills. Do not use subagent-driven-development or the subagent execution in executing-plans.
 - Implementers are started only through Paseo handoff.
-- Review defaults to one `/paseo-advisor`. Use `/paseo-committee` only for hard bugs.
+- Review defaults to one `/paseo-advisor` using Codex temporarily while Claude Code tokens are unavailable. Use `/paseo-committee` only for hard bugs.
 - One task = one session. Archive the session when the task is done.
 
 ## Language
