@@ -126,7 +126,7 @@ Docker가 감지되고 Auth가 Isolated일 때만 켤 수 있다. LLM API 도메
 | 15 | Codex 카탈로그 | 크롤러 단계에서 출처를 확인한다 |
 | 16 | 재배포 | `index.json`에는 메타데이터만 담고, 스킬 본문은 앱이 원본에서 직접 받는다 |
 | 17 | 텔레메트리 | 넣지 않는다 |
-| 18 | i18n | `src/i18n/{en,ko}.json`에 직접 만든 `t()`를 쓴다 |
+| 18 | i18n | 직접 만든 `t()`를 쓴다. 공통 키는 `src/i18n/{en,ko}.json`, 기능별 키는 `src/features/<name>/i18n.{en,ko}.json` (병렬 충돌 방지) |
 | 19 | 데모 저장소 | `demos/ts-mini`, `demos/py-mini`를 각각 테스트를 포함한 소형으로 만든다 |
 | 20 | 충돌 경고 | 같은 이름, 같은 커맨드, 방법론 키워드가 겹치면 경고한다. 규칙은 `rules/conflicts.yaml` |
 | 21 | 디자인 시스템 | 첫 UI 태스크 전에 ui-ux-pro-max로 `docs/design-system.md`를 만든다. Raycast 톤, 다크 모드 기본, `#8B1E3F` |
