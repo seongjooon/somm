@@ -10,13 +10,6 @@ export async function migrate(db: Db): Promise<void> {
   await db.execute('PRAGMA journal_mode=WAL');
   const [row] = await db.select<{ user_version: number }>('PRAGMA user_version');
   if (row.user_version >= 1) return;
-  await db.execute('BEGIN');
-  try {
-    for (const sql of SCHEMA_V1) await db.execute(sql);
-    await db.execute('PRAGMA user_version=1');
-    await db.execute('COMMIT');
-  } catch (error) {
-    await db.execute('ROLLBACK');
-    throw error;
-  }
+  for (const sql of SCHEMA_V1) await db.execute(sql);
+  await db.execute('PRAGMA user_version=1');
 }
