@@ -39,7 +39,9 @@ export async function run(args: string[], ctx: CliContext): Promise<number> {
       } catch (error) {
         if (!(error instanceof Error) || error.name !== 'TargetInResidueError') throw error;
         const location = opts.agent === 'codex' ? 'CODEX_HOME/skills or project skills' : 'project skills';
-        emit(ctx, 'needs to breathe', [`${humanField(skill.name)} is already visible to both arms (${location}). Remove or rename it, then retry.`], { error: 'target-in-residue' });
+        const residue = [...new Set((error as Error & { residue: string[] }).residue)].sort();
+        const contamination = { status: 'contaminated', common: [], extras: [], residue, targetInResidue: true };
+        emit(ctx, 'needs to breathe', [`Shared residue: ${residue.length}${residue.length ? ` (${residue.map(humanField).join(', ')})` : ''}`, `${humanField(skill.name)} is already visible to both arms (${location}). Remove or rename it, then retry.`], { error: 'target-in-residue', contamination });
         return 1;
       }
       choices.forEach((choice, i) => ctx.err(`${i + 1}. ${choice}`));

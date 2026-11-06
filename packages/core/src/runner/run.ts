@@ -66,15 +66,21 @@ async function execute(p: Platform, deps: { agent: AgentAdapter; sandbox: Sandbo
     };
   };
 
-  const status = await withTimeout(agent.detect(), timeouts.detect);
-  if (status === 'timeout') { warnings.push('detect-timeout'); return result(null, []); }
-  if (!status.installed || status.loggedIn === false) { warnings.push('auth'); return result(null, []); }
   signal.throwIfAborted();
-  const prepared = await sandbox.prepare(req.projectDir, req.runId);
-  warnings.push(...prepared.warnings);
+  if (!sandbox.preparePreflight || !sandbox.prepareDependencies) throw new Error('Sandbox does not support safe preflight');
+  const prepared = await sandbox.preparePreflight(req.projectDir, req.runId);
+  signal.throwIfAborted();
   residue = await agent.enumerateSkills(prepared.base);
-  if (residue.includes(skill.name)) { warnings.push('target-in-residue'); return result(null, []); }
+  if (residue.includes(skill.name)) { warnings.push(...prepared.warnings, 'target-in-residue'); return result(null, []); }
+  signal.throwIfAborted();
+  const status = await withTimeout(agent.detect(), timeouts.detect);
+  if (status === 'timeout') { warnings.push(...prepared.warnings, 'detect-timeout'); return result(null, []); }
+  if (!status.installed || status.loggedIn === false) { warnings.push(...prepared.warnings, 'auth'); return result(null, []); }
+  signal.throwIfAborted();
 
+  await sandbox.prepareDependencies(prepared.base);
+  warnings.push(...prepared.warnings);
+  signal.throwIfAborted();
   const count = opts.runs === 'thorough' ? 3 : 1;
   const names = Array.from({ length: count }, (_, i) => [`a-${i}`, `b-${i}`]).flat();
   const dirs = await sandbox.split(prepared.base, names);

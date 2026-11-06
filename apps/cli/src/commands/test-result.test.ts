@@ -45,10 +45,18 @@ it('includes the proposal call in the usage estimate', async () => {
   expect(messages.join('\n')).toMatch(/proposal.*4 agent calls/i);
 });
 it('reports target-in-residue from proposal with the actionable verdict', async () => {
-  fake.propose.mockRejectedValue(Object.assign(new Error('target-in-residue'), { name: 'TargetInResidueError', skillName: 'skill' }));
+  fake.propose.mockRejectedValue(Object.assign(new Error('target-in-residue'), { name: 'TargetInResidueError', skillName: 'skill', residue: ['other', 'skill'] }));
   const options = args().filter((_, i, a) => a[i] !== '--task' && a[i - 1] !== '--task');
   expect(await run(options, ctx)).toBe(1);
   expect(lines[0]).toBe('// somm: needs to breathe');
   expect(lines.join('\n')).toContain('skill is already visible to both arms (CODEX_HOME/skills or project skills). Remove or rename it, then retry.');
+  expect(lines).toContain('Shared residue: 2 (other, skill)');
   expect(fake.run).not.toHaveBeenCalled();
+});
+
+it('preserves proposal residue in JSON output', async () => {
+  fake.propose.mockImplementation(async () => { ctx.json = true; throw Object.assign(new Error('target-in-residue'), { name: 'TargetInResidueError', skillName: 'skill', residue: ['other', 'skill'] }); });
+  const options = args().filter((_, i, a) => a[i] !== '--task' && a[i - 1] !== '--task');
+  expect(await run(options, ctx)).toBe(1); expect(lines).toHaveLength(1);
+  expect(JSON.parse(lines[0]).contamination).toMatchObject({ status: 'contaminated', targetInResidue: true, residue: ['other', 'skill'] });
 });
