@@ -8,8 +8,8 @@
   },
   "scripts": {
     "test": "vitest run",
-    "check": "tsc --noEmit",
-    "build": "tsc --noEmit",
+    "check": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
+    "build": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
     "gen:rules": "node scripts/gen-rules.mjs"
   },
   "dependencies": {
