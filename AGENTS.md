@@ -42,7 +42,7 @@ Source of truth: `docs/PRD.md`. Read it before planning. Do not build anything l
 - superpowers: use only brainstorming, writing-plans, systematic-debugging, test-driven-development, and the code review skills. Do not use subagent-driven-development or the subagent execution in executing-plans.
 - Implementers are started only through Paseo handoff.
 - Roles: Claude is the brain (lead, planning, review, hard implementation). Codex runs light, well-specified implementation on Claude's instructions.
-- Models (main and sub agents): Claude `claude-opus-5-5` with thinking `low`; Codex `gpt-6.1-terra` with thinking `low`.
+- Models (main and sub agents): Claude `claude-sonnet-5-5` with thinking `low`; Codex `gpt-6.1-terra` with thinking `low`.
 - Review defaults to one Claude `/paseo-advisor`. Use `/paseo-committee` only for hard bugs.
 - One task = one session. Archive the session when the task is done.
 
