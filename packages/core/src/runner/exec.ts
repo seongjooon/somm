@@ -16,10 +16,16 @@ export function makeScrub(key?: string) {
 }
 export type Scrub = ReturnType<typeof makeScrub>;
 
-export interface Invocation { events: AgentEvent[]; code: number; stderr: string; auth: boolean; budget: boolean }
+export const DETECT_TIMEOUT_MS = 30_000;
+export const TEST_TIMEOUT_MS = 10 * 60_000;
+export const AGENT_TIMEOUT_MS = 15 * 60_000;
+export interface Timeouts { detect: number; test: number; agent: number }
+export const DEFAULT_TIMEOUTS: Timeouts = { detect: DETECT_TIMEOUT_MS, test: TEST_TIMEOUT_MS, agent: AGENT_TIMEOUT_MS };
+
+export interface Invocation { events: AgentEvent[]; code: number; stderr: string; auth: boolean; budget: boolean; timedOut: boolean }
 export interface InvokeInput {
   cwd: string; tmpHome: string; prompt: string; opts: RunOptions; signal: AbortSignal; scrub: Scrub;
-  onEvent?: (e: AgentEvent) => void;
+  onEvent?: (e: AgentEvent) => void; timeoutMs?: number;
 }
 const isAbort = (e: unknown) => (e as { name?: string })?.name === 'AbortError';
 
@@ -29,12 +35,12 @@ export async function invokeAgent(p: Platform, agent: AgentAdapter, i: InvokeInp
   await p.fs.mkdirp(i.opts.agent === 'codex' ? `${i.tmpHome}/.codex` : i.tmpHome);
   const spec = agent.buildRun({ cwd: i.cwd, prompt: i.prompt, opts: i.opts, tmpHome: i.tmpHome });
   const ctl = new AbortController();
-  const relay = () => ctl.abort();
-  if (i.signal.aborted) ctl.abort(); else i.signal.addEventListener('abort', relay, { once: true });
-  const out: Invocation = { events: [], code: 1, stderr: '', auth: false, budget: false };
+  const deadline = AbortSignal.timeout(i.timeoutMs ?? AGENT_TIMEOUT_MS);
+  const signal = AbortSignal.any([i.signal, deadline, ctl.signal]);
+  const out: Invocation = { events: [], code: 1, stderr: '', auth: false, budget: false, timedOut: false };
   try {
     const res = await p.proc.run(spec.bin, spec.args, {
-      cwd: spec.cwd, env: { ...spec.env, ...SANDBOX_GIT_ENV }, signal: ctl.signal,
+      cwd: spec.cwd, env: { ...spec.env, ...SANDBOX_GIT_ENV }, signal,
       onLine: (stream, line) => {
         if (stream === 'stderr') return;
         const parsed = agent.parseLine(line);
@@ -49,8 +55,10 @@ export async function invokeAgent(p: Platform, agent: AgentAdapter, i: InvokeInp
     out.code = res.code;
     out.stderr = res.stderr.slice(-1000);
   } catch (err) {
-    if (i.signal.aborted || !isAbort(err) || !out.auth) throw err;
-  } finally { i.signal.removeEventListener('abort', relay); }
+    if (i.signal.aborted || !isAbort(err)) throw err;
+    if (deadline.aborted && !out.auth) out.timedOut = true;
+    else if (!out.auth) throw err;
+  }
   out.stderr = i.scrub.str(out.stderr);
   return out;
 }

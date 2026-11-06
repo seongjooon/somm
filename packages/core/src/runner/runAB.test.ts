@@ -97,6 +97,74 @@ test('canary hit makes grade F and corked', async () => {
   expect(r).toMatchObject({ grade: 'F', tag: '// somm: corked' });
   expect(r.b[0].canaryHits).toHaveLength(1);
 });
+test('canary hit only in baseline A does not grade F', async () => {
+  const leak = line({ kind: 'tool', tool: { name: 'Bash', input: 'cat ~/.ssh/id_rsa' } });
+  const e = await setup({ script: async (c) => ({ lines: c.skillPresent || c.cwd.endsWith('base') ? (c.cwd.endsWith('base') ? [VERDICT] : okLines()) : [leak, ...okLines()], code: 0 }) });
+  const r = await runAB(e.p, e, req(e));
+  expect(r.grade).toBe('A');
+  expect(r.warnings).toContain('canary-in-baseline');
+  expect(r.a[0].canaryHits).toEqual(['~/.ssh']);
+});
+test('canary hit in B grades F and skips the verdict call', async () => {
+  const leak = line({ kind: 'tool', tool: { name: 'Bash', input: 'cat ~/.ssh/id_rsa' } });
+  const e = await setup({ script: async (c) => ({ lines: c.skillPresent ? [leak, ...okLines()] : okLines(), code: 0 }) });
+  const r = await runAB(e.p, e, req(e));
+  expect(r).toMatchObject({ grade: 'F', tag: '// somm: corked' });
+  expect(e.calls).toHaveLength(2);
+});
+test('api key inside a diff is scrubbed from the DB and the verdict prompt', async () => {
+  const key = 'sk-ant-DIFFKEY-987654321';
+  const e = await setup({ patch: `+API=${key}\n+esc=${JSON.stringify(key)}` });
+  const opts: RunOptions = { agent: 'claude', auth: 'isolated', runs: 'quick', apiKey: key, budgetUsd: 1 };
+  const r = await runAB(e.p, e, req(e, { opts }));
+  await saveRun(e.p, r, {});
+  const prompt = e.calls[e.calls.length - 1].args[0];
+  expect(prompt).toContain('[REDACTED]');
+  expect(prompt).not.toContain(key);
+  expect(JSON.stringify(await e.db.select('SELECT * FROM run_arms'))).not.toContain(key);
+});
+test('auth early return reports a clean empty contamination', async () => {
+  const e = await setup({ loggedIn: false });
+  expect((await runAB(e.p, e, req(e))).contamination).toEqual({ status: 'clean', common: [], extras: [], residue: [], targetInResidue: false });
+});
+test('budget stop skips the verdict call', async () => {
+  const budget = line({ kind: 'error', error: { code: 'budget', message: 'max budget' } });
+  const e = await setup({ script: async () => ({ lines: [budget, ...okLines()], code: 1 }) });
+  const r = await runAB(e.p, e, req(e));
+  expect(r.warnings).toContain('budget');
+  expect(e.calls).toHaveLength(1);
+});
+test('verdict that is unparsable or hits budget adds warnings', async () => {
+  const bad = await setup({ script: async (c) => ({ lines: c.cwd.endsWith('base') ? [line({ kind: 'text', text: 'nope' })] : okLines(), code: 0 }) });
+  const r1 = await runAB(bad.p, bad, req(bad));
+  expect(r1).toMatchObject({ verdict: null }); expect(r1.warnings).toContain('verdict-failed');
+  const b = line({ kind: 'error', error: { code: 'budget', message: 'max budget' } });
+  const over = await setup({ script: async (c) => ({ lines: c.cwd.endsWith('base') ? [b] : okLines(), code: 1 - Number(!c.cwd.endsWith('base')) }) });
+  expect((await runAB(over.p, over, req(over))).warnings).toContain('verdict-budget');
+});
+test('cleanup failure is reported in the returned warnings', async () => {
+  const e = await setup({ cleanupThrows: true });
+  expect((await runAB(e.p, e, req(e))).warnings).toContain('cleanup-failed');
+});
+test('agent invocation timeout fails the arm with a clear message', async () => {
+  const e = await setup({ script: () => new Promise(() => {}) });
+  const r = await runAB(e.p, e, req(e, { timeouts: { agent: 20 } }));
+  expect(r.a[0]).toMatchObject({ ok: false }); expect(r.a[0].error).toMatch(/timed out/i);
+});
+test('detect timeout stops before any agent call', async () => {
+  const e = await setup({ detectHangs: true });
+  const r = await runAB(e.p, e, req(e, { timeouts: { detect: 20 } }));
+  expect(r.warnings).toEqual(['detect-timeout']); expect(e.calls).toHaveLength(0);
+});
+test('test command timeout fails the arm; spawn errors warn', async () => {
+  const pkg = { 'package.json': '{"scripts":{"test":"x"}}' };
+  const hang = await setup({ armFiles: pkg, script: async (c) => c.bin === 'npm' ? new Promise(() => {}) : { lines: okLines(), code: 0 } });
+  const r = await runAB(hang.p, hang, req(hang, { timeouts: { test: 20 } }));
+  expect(r.a[0]).toMatchObject({ ok: false }); expect(r.a[0].error).toMatch(/test command timed out/i);
+  const broken = await setup({ armFiles: pkg, script: async (c) => { if (c.bin === 'npm') throw new Error('spawn npm ENOENT'); return { lines: c.cwd.endsWith('base') ? [VERDICT] : okLines(), code: 0 }; } });
+  const r2 = await runAB(broken.p, broken, req(broken));
+  expect(r2.warnings).toContain('tests-failed-to-run'); expect(r2.a[0].tests).toBeNull(); expect(r2.a[0].ok).toBe(true);
+});
 test('saveRun never persists the api key', async () => {
   const key = 'sk-ant-SECRET-1234567890';
   const echo = line({ kind: 'text', text: `my key is ${key}` });
