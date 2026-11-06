@@ -9,6 +9,7 @@ test('waits for cancellation cleanup before rejecting', async () => {
   let release!: () => void;
   const killed = new Promise<void>(resolve => { release = resolve; });
   bridge.invoke.mockImplementation(async (command, args) => {
+    if (command === 'resolve_bins') return { node: '/usr/bin/node' };
     if (command === 'spawn_agent') {
       queueMicrotask(() => { controller.abort(); bridge.listeners.get('proc://exit')!({ payload: { id: args.id, code: 1 } }); });
     }
@@ -28,6 +29,7 @@ test('waits for cancellation cleanup before rejecting', async () => {
 test('preserves complete and partial output and removes listeners on spawn errors', async () => {
   const onLine = vi.fn();
   bridge.invoke.mockImplementation(async (command, args) => {
+    if (command === 'resolve_bins') return { node: '/usr/bin/node' };
     if (command === 'spawn_agent') {
       bridge.listeners.get('proc://line')!({ payload: { id: args.id, stream: 'stdout', line: 'hello', terminated: true } });
       bridge.listeners.get('proc://line')!({ payload: { id: args.id, stream: 'stderr', line: 'partial', terminated: false } });

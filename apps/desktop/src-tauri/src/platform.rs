@@ -5,6 +5,7 @@ use tauri_plugin_fs::FsExt;
 pub struct Context {
     home: String,
     data_dir: String,
+    env: std::collections::HashMap<String, String>,
 }
 pub fn context(app: &tauri::AppHandle) -> Result<Context, String> {
     let home = app.path().home_dir().map_err(|e| e.to_string())?;
@@ -17,7 +18,13 @@ pub fn context(app: &tauri::AppHandle) -> Result<Context, String> {
     app.fs_scope()
         .allow_directory(&data, true)
         .map_err(|e| e.to_string())?;
+    let mut env = app
+        .state::<crate::environment::Environment>()
+        .vars()
+        .clone();
+    env.insert("SOMM_DATA_DIR".into(), data.to_string_lossy().into_owned());
     Ok(Context {
+        env,
         home: home.to_string_lossy().into_owned(),
         data_dir: data.to_string_lossy().into_owned(),
     })

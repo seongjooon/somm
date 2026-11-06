@@ -5,10 +5,75 @@
   ],
   "permissions": [
     "core:default",
-    "fs:allow-exists",
-    "fs:allow-read-text-file",
+    {
+      "identifier": "fs:allow-exists",
+      "allow": [
+        {
+          "path": "$HOME/.codex/skills"
+        },
+        {
+          "path": "$HOME/.codex/skills/**"
+        },
+        {
+          "path": "$HOME/.codex/skills/.system"
+        },
+        {
+          "path": "$HOME/.codex/skills/.system/**"
+        }
+      ]
+    },
+    {
+      "identifier": "fs:allow-lstat",
+      "allow": [
+        {
+          "path": "$HOME/.codex/skills"
+        },
+        {
+          "path": "$HOME/.codex/skills/**"
+        },
+        {
+          "path": "$HOME/.codex/skills/.system"
+        },
+        {
+          "path": "$HOME/.codex/skills/.system/**"
+        }
+      ]
+    },
+    {
+      "identifier": "fs:allow-read-text-file",
+      "allow": [
+        {
+          "path": "$HOME/.codex/skills"
+        },
+        {
+          "path": "$HOME/.codex/skills/**"
+        },
+        {
+          "path": "$HOME/.codex/skills/.system"
+        },
+        {
+          "path": "$HOME/.codex/skills/.system/**"
+        }
+      ]
+    },
     "fs:allow-write-text-file",
-    "fs:allow-read-dir",
+    {
+      "identifier": "fs:allow-read-dir",
+      "allow": [
+        {
+          "path": "$HOME/.codex/skills"
+        },
+        {
+          "path": "$HOME/.codex/skills/**"
+        },
+        {
+          "path": "$HOME/.codex/skills/.system"
+        },
+        {
+          "path": "$HOME/.codex/skills/.system/**"
+        }
+      ]
+    },
     "fs:allow-mkdir",
     "fs:allow-remove",
     "fs:allow-rename",
