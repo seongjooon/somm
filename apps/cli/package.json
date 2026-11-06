@@ -1,0 +1,16 @@
+{
+  "name": "somm",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "somm": "dist/cli.js"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "check": "tsc --noEmit",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/cli.js"
+  },
+  "dependencies": {
+    "@somm/core": "workspace:*"
+  }
+}
