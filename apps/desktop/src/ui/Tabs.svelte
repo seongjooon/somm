@@ -13,7 +13,7 @@
 </script>
 <div class="tabs" role="tablist" aria-label={label}>
   {#each items as item, index (item.value)}
-    <button role="tab" id={item.id} aria-controls={item.panelId} aria-selected={selected === item.value} tabindex={selected === item.value ? 0 : -1} onclick={() => selected = item.value} onkeydown={(event) => keydown(event, index)}>{item.label}</button>
+    <button type="button" role="tab" id={item.id} aria-controls={item.panelId} aria-selected={selected === item.value} tabindex={selected === item.value ? 0 : -1} onclick={() => selected = item.value} onkeydown={(event) => keydown(event, index)}>{item.label}</button>
   {/each}
 </div>
 <style>.tabs { display: flex; gap: .25rem; border-bottom: 1px solid var(--border); } button { padding: .625rem .875rem; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); font: inherit; } button:hover { color: var(--foreground); } button[aria-selected="true"] { color: var(--foreground); border-bottom-color: var(--accent); font-weight: 600; }</style>
