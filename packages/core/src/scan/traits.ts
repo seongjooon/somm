@@ -1,3 +1,4 @@
+import { skillText } from '../types';
 import type { SkillFile, SkillTraits } from '../types';
 
 export function normalizedPath(path: string): string {
@@ -17,9 +18,10 @@ export function skillTraits(files: SkillFile[]): SkillTraits {
     traits.hasMcp ||= /(?:^|\/)\.mcp\.json$/.test(path);
     const command = /(?:^|\/)commands\/([^/]+)\.md$/i.exec(path);
     if (command) commands.add(`/${command[1]}`);
-    if (/\.json$/i.test(path)) {
+    const text = skillText(file.contents);
+    if (text !== undefined && /\.json$/i.test(path)) {
       try {
-        const config: unknown = JSON.parse(file.contents);
+        const config: unknown = JSON.parse(text);
         traits.hasHooks ||= hasKey(config, 'hooks');
         traits.hasMcp ||= hasKey(config, 'mcpServers');
       } catch { /* Invalid JSON is still scanned as text by the rule engine. */ }
