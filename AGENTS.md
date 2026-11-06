@@ -30,6 +30,18 @@ Source of truth: `docs/PRD.md`. Read it before planning. Do not build anything l
 - Every task ends with: tests/build passing, a short summary, and what was not verified.
 - Commit messages: Conventional Commits (`feat:`, `fix:`, `docs:`...).
 
+## Multi-agent
+- One implementation task = one workspace = one worktree = one branch (base: `origin/main`).
+- Each task lists the files/folders it may modify. Do not modify files outside that scope; ask the lead via `paseo send` instead.
+- Reviewers and advisors never modify files.
+- Only the lead merges. Before merging: rebase onto `origin/main`, then tests must pass.
+
+## Tooling
+- superpowers: use only brainstorming, writing-plans, systematic-debugging, test-driven-development, and the code review skills. Do not use subagent-driven-development or the subagent execution in executing-plans.
+- Implementers are started only through Paseo handoff.
+- Review defaults to one `/paseo-advisor`. Use `/paseo-committee` only for hard bugs.
+- One task = one session. Archive the session when the task is done.
+
 ## Language
 - Talk to the user in Korean.
 - Code, identifiers, comments, commit messages in English. UI strings in English first, with i18n keys.
