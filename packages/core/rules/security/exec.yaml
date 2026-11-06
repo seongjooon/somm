@@ -1,0 +1,25 @@
+- id: remote-exec
+  severity: critical
+  pattern: '\b(?:curl|wget)\b[^\r\n|]*\|\s*(?:bash|sh|zsh)\b'
+  flags: i
+  message: Remote content is piped directly to a shell.
+- id: eval
+  severity: high
+  pattern: '\beval\s*(?:\(|["\x27$])'
+  message: Dynamic evaluation can execute untrusted content.
+- id: base64-decode
+  severity: high
+  pattern: '\bbase64\b[^\r\n|]*(?:-d|--decode)[^\r\n|]*\|'
+  message: Decoded content is piped into another command.
+- id: encoded-payload
+  severity: high
+  pattern: '(?:^|[^A-Za-z0-9+/])[A-Za-z0-9+/]{200,}={0,2}(?=$|[^A-Za-z0-9+/=])'
+  message: Long encoded content may hide executable instructions.
+- id: destructive-delete
+  severity: critical
+  pattern: '\brm\s+(?:-[a-zA-Z]*[rf][a-zA-Z]*\s+)+(?:["\x27])?(?:/|~|\$HOME)(?:["\x27])?(?=\s|$|[;&|])'
+  message: Recursive or forced deletion targets a root or home directory.
+- id: world-writable
+  severity: high
+  pattern: '\bchmod\s+(?:-R\s+)?(?:777|a\+rwx)\b'
+  message: World-writable permissions allow other users to alter content.

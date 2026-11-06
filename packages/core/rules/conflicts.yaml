@@ -1,0 +1,3 @@
+- group: methodology
+  names: [superpowers, gstack]
+  keywords: [methodology, development workflow, test-driven development, systematic debugging]
