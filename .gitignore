@@ -3,3 +3,5 @@ node_modules
 target
 dist
 apps/desktop/src-tauri/gen/
+__pycache__/
+*.pyc
