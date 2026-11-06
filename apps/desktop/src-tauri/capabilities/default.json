@@ -84,16 +84,16 @@
       "identifier": "fs:scope",
       "allow": [
         {
-          "path": "$HOME/.claude"
+          "path": "$HOME/.claude/skills"
         },
         {
-          "path": "$HOME/.claude/**"
+          "path": "$HOME/.claude/skills/**"
         },
         {
-          "path": "$HOME/.agents"
+          "path": "$HOME/.agents/skills"
         },
         {
-          "path": "$HOME/.agents/**"
+          "path": "$HOME/.agents/skills/**"
         }
       ]
     }

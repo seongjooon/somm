@@ -4,6 +4,7 @@ export interface Fs {
   exists(p: string): Promise<boolean>; readText(p: string): Promise<string>;
   writeText(p: string, s: string): Promise<void>; readDir(p: string): Promise<DirEntry[]>;
   mkdirp(p: string): Promise<void>; remove(p: string): Promise<void>;
+  readlink(p: string): Promise<string>;
   rename(from: string, to: string): Promise<void>; symlink(target: string, link: string): Promise<void>;
 }
 export interface ProcResult { code: number; stdout: string; stderr: string }

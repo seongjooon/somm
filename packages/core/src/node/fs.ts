@@ -10,6 +10,7 @@ export const nodeFs: Fs = {
   async readDir(p) { return (await fs.readdir(p, { withFileTypes: true })).map(e => ({ name: e.name, isDir: e.isDirectory(), isSymlink: e.isSymbolicLink() })); },
   async mkdirp(p) { await fs.mkdir(p, { recursive: true }); },
   remove: p => fs.rm(p, { recursive: true, force: true }),
+  readlink: fs.readlink,
   rename: fs.rename,
   symlink: fs.symlink,
 };

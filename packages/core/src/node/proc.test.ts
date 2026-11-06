@@ -1,3 +1,6 @@
+import { mkdtemp, mkdir, writeFile, chmod, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, delimiter } from 'node:path';
 import { expect, test, vi } from 'vitest';
 import { nodeProc as proc } from './proc';
 test('runs git and resolves absolute binaries', async () => {
@@ -50,4 +53,18 @@ test('ignores kill errors during cancellation and retries with SIGKILL', async (
     });
     await expect(result).rejects.toMatchObject({ name: 'AbortError' });
   } finally { kill.mockRestore(); }
+});
+
+test('which skips directories named like executables', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'somm-which-'));
+  const oldPath = process.env.PATH;
+  try {
+    await mkdir(join(root, 'first', 'tool'), { recursive: true });
+    await mkdir(join(root, 'second'));
+    const executable = join(root, 'second', 'tool');
+    await writeFile(executable, '#!/bin/sh\n');
+    await chmod(executable, 0o755);
+    process.env.PATH = [join(root, 'first'), join(root, 'second')].join(delimiter);
+    expect((await proc.which(['tool'])).tool).toBe(executable);
+  } finally { process.env.PATH = oldPath; await rm(root, { recursive: true, force: true }); }
 });

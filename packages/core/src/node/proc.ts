@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { access } from 'node:fs/promises';
+import { access, stat } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { delimiter, isAbsolute, join } from 'node:path';
 import type { Proc } from '../platform';
@@ -8,7 +8,7 @@ export const nodeProc: Proc = {
     return Object.fromEntries(await Promise.all(names.map(async name => {
       for (const dir of (process.env.PATH ?? '').split(delimiter)) {
         const path = join(dir, name);
-        try { await access(path, constants.X_OK); if (isAbsolute(path)) return [name, path]; } catch { /* Try the next PATH entry. */ }
+        try { await access(path, constants.X_OK); if (isAbsolute(path) && (await stat(path)).isFile()) return [name, path]; } catch { /* Try the next PATH entry. */ }
       }
       return [name, null];
     })));
