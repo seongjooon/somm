@@ -10,7 +10,7 @@ export interface ProcResult { code: number; stdout: string; stderr: string }
 export interface Proc {
   which(names: string[]): Promise<Record<string, string | null>>;
   run(bin: string, args: string[], opts?: {
-    cwd?: string; env?: Record<string, string | null>;       // null = 상속 env에서 제거
+    cwd?: string; env?: Record<string, string | null>;       // null removes the variable from the inherited environment.
     onLine?: (stream: 'stdout' | 'stderr', line: string) => void; signal?: AbortSignal;
   }): Promise<ProcResult>;
 }

@@ -34,8 +34,8 @@ export interface ArmMetrics {
 }
 export interface Contamination {
   status: 'clean' | 'contaminated'; common: string[]; extras: string[];
-  residue: string[];          // 스펙 5.3 공통 잔여: somm이 넣지 않았는데 양쪽 arm에 보이는 스킬 이름(결과·--json에 항상 표시)
-  targetInResidue: boolean;   // 대상 스킬 이름이 residue에 있음 → A/B 무의미
+  residue: string[];          // Shared skills not injected by somm; always shown in results and --json (spec 5.3).
+  targetInResidue: boolean;   // The target already appears in residue, making A/B invalid.
 }
 export type Rating = 'recommend' | 'conditional' | 'not-recommended';
 export interface Verdict { line: string; rating: Rating }
