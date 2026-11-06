@@ -42,3 +42,11 @@ test('preserves and redacts target residue details when cleanup fails', async ()
   for (const residue of [error.primaryDetails.residue, error.cause.residue]) expect([...residue].sort()).toEqual(['other-[REDACTED]', 'tdd']);
   expect(error.cleanupMessage).toContain('[REDACTED]'); expect(JSON.stringify(failure)).not.toContain(key); expect(error.message).not.toContain(key);
 });
+test('passes the selected model to the proposal agent', async () => {
+  const e = await makeEnv({ script: async () => ({ lines: [line({ kind: 'text', text: '["one","two","three"]' })], code: 0 }) }); root = e.root;
+  let model: string | undefined;
+  const build = e.agent.buildRun;
+  e.agent.buildRun = request => { model = request.model; return build(request); };
+  await proposeTasks(e.p, e, { runId: 'proposal', projectDir: root, skill: { name: 'tdd', description: '' }, opts: { agent: 'claude', auth: 'subscription', runs: 'quick' }, model: 'small-model', signal: new AbortController().signal });
+  expect(model).toBe('small-model');
+});

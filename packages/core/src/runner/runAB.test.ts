@@ -219,3 +219,13 @@ test.each(['cancel', 'timeout'] as const)('preserves %s and redacts both errors 
   if (mode === 'timeout') expect(error.primaryMessage).toContain('timed out');
   expect(JSON.stringify({ message: error.message, stack: error.stack, cleanup: error.cleanupMessage, primary: error.primaryMessage, cause: error.cause.message })).not.toContain(secret);
 });
+
+test.each([undefined, 'small-model'])('passes model %s to every arm and verdict', async model => {
+  const e = await setup();
+  const requests: (string | undefined)[] = [];
+  const build = e.agent.buildRun;
+  e.agent.buildRun = request => { requests.push(request.model); return build(request); };
+  const result = await runAB(e.p, e, req(e, { model }));
+  expect(requests).toEqual([model, model, model]);
+  expect(result.meta.model).toBe(model);
+});

@@ -8,7 +8,7 @@ import { detectTestCommand, parseTestOutput } from './tests';
 
 export interface ArmInput {
   name: string; dir: string; tmpHome: string; task: string; opts: RunOptions; signal: AbortSignal; scrub: Scrub;
-  canaries: Canary[]; cleanupPaths: string[]; timeouts?: { test: number; agent: number }; onEvent: (arm: string, e: AgentEvent) => void;
+  model?: string; canaries: Canary[]; cleanupPaths: string[]; timeouts?: { test: number; agent: number }; onEvent: (arm: string, e: AgentEvent) => void;
 }
 export interface ArmOutput { metrics: ArmMetrics; events: AgentEvent[]; auth: boolean; budget: boolean; warnings: string[] }
 
@@ -32,7 +32,7 @@ export async function runArm(p: Platform, agent: AgentAdapter, sandbox: Sandbox,
   const skills = new Set(await agent.enumerateSkills(a.dir));
   if (a.opts.agent === 'codex') for (const s of await agent.enumerateSkills(a.tmpHome)) skills.add(s);
   const started = Date.now();
-  const inv = await invokeAgent(p, agent, { cwd: a.dir, tmpHome: a.tmpHome, prompt: a.task, opts: a.opts, signal: a.signal,
+  const inv = await invokeAgent(p, agent, { cwd: a.dir, tmpHome: a.tmpHome, prompt: a.task, opts: a.opts, model: a.model, signal: a.signal,
     scrub: a.scrub, timeoutMs: a.timeouts?.agent ?? AGENT_TIMEOUT_MS, onEvent: e => a.onEvent(a.name, e) });
   const durationMs = Date.now() - started;
   const ran = await runTests(p, a.dir, a.signal, a.timeouts?.test ?? TEST_TIMEOUT_MS);

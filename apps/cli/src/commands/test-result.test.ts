@@ -92,3 +92,25 @@ it.each([false, true])('does not mask an unrelated primary failure when signalle
   expect(await run(args(), ctx)).toBe(1); expect(lines.join('\n')).toContain('disk failed'); expect(lines.join('\n')).not.toContain('Run cancelled');
   if (cleanup) expect(lines.join('\n')).toContain('cleanup failed');
 });
+
+it('passes the model to proposal and run and shows it in the usage notice', async () => {
+  const messages: string[] = []; ctx.err = s => messages.push(s);
+  (ctx as CliContext & { select: (q: string) => Promise<string> }).select = async () => '1';
+  const options = args().filter((_, i, a) => a[i] !== '--task' && a[i - 1] !== '--task');
+  expect(await run([...options, '--model', 'small-model'], ctx)).toBe(0);
+  expect(fake.propose.mock.calls[0][2].model).toBe('small-model');
+  expect(fake.run.mock.calls[0][2].model).toBe('small-model');
+  expect(messages).toContain('Model: small-model');
+});
+it.each(['', 'two words', '-flag'])('rejects invalid model %j as JSON', async model => {
+  ctx.json = true;
+  expect(await run([...args(), `--model=${model}`], ctx)).toBe(1);
+  expect(JSON.parse(lines[0]).error).toMatch(/model/i);
+  expect(fake.run).not.toHaveBeenCalled();
+});
+it('does not show or pass a model by default', async () => {
+  const messages: string[] = []; ctx.err = s => messages.push(s);
+  expect(await run(args(), ctx)).toBe(0);
+  expect(fake.run.mock.calls[0][2].model).toBeUndefined();
+  expect(messages.join('\n')).not.toContain('Model:');
+});
