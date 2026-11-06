@@ -312,3 +312,60 @@ test('rejects absolute dependency links into the home directory', async () => {
   const { deps } = await createLiteSandbox(p, bins).prepare(project, 'venv-home');
   expect(deps.ok).toBe(false);
 });
+async function evilScript(marker: string) {
+  const script = `${root}/evil2.sh`;
+  await fs.writeText(script, `#!/bin/sh\ntouch '${marker}'\ncat\n`);
+  expect((await p.proc.run('chmod', ['+x', script])).code).toBe(0);
+  return script;
+}
+test('arm git config fsmonitor and attribute filters leave no marker files', async () => {
+  await fixture();
+  const sandbox = createLiteSandbox(p, bins);
+  const { base } = await sandbox.prepare(project, 'hard1');
+  const arms = await sandbox.split(base, ['a']);
+  const marker = `${root}/marker1`, script = await evilScript(marker);
+  await fs.writeText(`${arms.a}/.git/config`, `[core]\n\tfsmonitor = ${script}\n[filter "x"]\n\tclean = ${script}\n`);
+  await fs.writeText(`${arms.a}/.gitattributes`, '* filter=x\n');
+  await fs.writeText(`${arms.a}/main.txt`, 'changed\n');
+  await sandbox.diffStat(arms.a);
+  expect(await fs.exists(marker)).toBe(false);
+});
+test('arm commondir and alternates do not change the diff or reach outside', async () => {
+  await fixture();
+  const sandbox = createLiteSandbox(p, bins);
+  const { base } = await sandbox.prepare(project, 'hard2');
+  const arms = await sandbox.split(base, ['a']);
+  await fs.writeText(`${arms.a}/main.txt`, 'changed\n');
+  const expected = await sandbox.diffStat(arms.a);
+  await fs.writeText(`${arms.a}/.git/commondir`, `${project}/.git\n`);
+  await fs.mkdirp(`${arms.a}/.git/objects/info`);
+  await fs.writeText(`${arms.a}/.git/objects/info/alternates`, `${project}/.git/objects\n`);
+  const before = (await stat(`${project}/.git/index`)).mtimeMs;
+  expect(await sandbox.diffStat(arms.a)).toEqual(expected);
+  expect((await stat(`${project}/.git/index`)).mtimeMs).toBe(before);
+});
+test('user-level git config filters are not applied during diffStat', async () => {
+  await fixture();
+  const sandbox = createLiteSandbox(p, bins);
+  const { base } = await sandbox.prepare(project, 'hard3');
+  const arms = await sandbox.split(base, ['a']);
+  const marker = `${root}/marker3`, script = await evilScript(marker);
+  await fs.writeText(`${root}/empty-home/.gitconfig`, `[filter "x"]\n\tclean = ${script}\n`);
+  await fs.writeText(`${arms.a}/.gitattributes`, '* filter=x\n');
+  await fs.writeText(`${arms.a}/main.txt`, 'changed\n');
+  await sandbox.diffStat(arms.a);
+  expect(await fs.exists(marker)).toBe(false);
+});
+// Accepted limitation: an arm .gitignore can hide its own changes from the diff (ignored files are not force-added).
+test('dependency symlink into a project reached through a symlinked parent is rejected', async () => {
+  const real = `${root}/real`, alias = `${root}/alias`;
+  await fs.mkdirp(real); await fs.symlink(real, alias);
+  const aliased = `${alias}/proj`;
+  await fs.mkdirp(aliased);
+  project = aliased;
+  await fixture({ 'pnpm-lock.yaml': 'lock' });
+  await fs.mkdirp(`${real}/proj/node_modules`);
+  await fs.symlink(`${real}/proj/main.txt`, `${real}/proj/node_modules/escape`);
+  const { deps } = await createLiteSandbox(p, { git: 'git' }).prepare(aliased, 'alias');
+  expect(deps.mode).not.toBe('cloned');
+});
