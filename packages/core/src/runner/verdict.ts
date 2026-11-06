@@ -26,7 +26,7 @@ export function parseVerdict(text: string): Verdict {
   return { line: line.trim(), rating: rating as Rating };
 }
 
-export function proposeTasksPrompt(skill: SkillMeta, tree: string[]): string {
+export function proposeTasksPrompt(skill: Pick<SkillMeta, 'name' | 'description'>, tree: string[]): string {
   return [
     `You help evaluate the agent skill "${skill.name}": ${skill.description}`,
     'Propose exactly 3 small, self-contained coding tasks in the project below that would show whether this skill helps.',

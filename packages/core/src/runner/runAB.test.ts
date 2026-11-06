@@ -189,3 +189,18 @@ test('binary skill files reach B byte-identical', async () => {
   expect(e.calls[0].binary).toBeNull();
   expect(Array.from(e.calls[1].binary!)).toEqual(Array.from(bytes));
 });
+test('persists optional source and content identity with the result', async () => {
+  const e = await setup();
+  const identity = { source: 'sample:one', contentHash: 'hash-1' };
+  const r = await runAB(e.p, e, req(e, { identity }));
+  await saveRun(e.p, r, {});
+  const rows = await e.db.select<{ result_json: string }>('SELECT result_json FROM runs WHERE id = ?', ['run1']);
+  expect(JSON.parse(rows[0].result_json).meta.identity).toEqual(identity);
+});
+test('marks an incomplete run stopped', async () => {
+  const e = await setup({ detectHangs: true });
+  const r = await runAB(e.p, e, req(e, { timeouts: { detect: 5 } }));
+  await saveRun(e.p, r, {});
+  const rows = await e.db.select<{ status: string }>('SELECT status FROM runs WHERE id = ?', ['run1']);
+  expect(rows[0].status).toBe('stopped');
+});

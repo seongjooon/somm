@@ -38,3 +38,42 @@ it('requires an isolated API key without printing its value', async () => {
   try { expect(await test.run([join(root, 'skill'), '--project', root, '--agent', 'codex', '--auth', 'isolated', '--task', 'test', '--yes'], ctx)).toBe(1); expect(lines.join('\n')).toContain('CODEX_API_KEY'); }
   finally { if (old !== undefined) process.env.CODEX_API_KEY = old; }
 });
+it('does not apply a recorded F to different content or source with the same name', async () => {
+  const { hashFiles } = await import('@somm/core');
+  const hash = await hashFiles([{ path: 'SKILL.md', contents: '# skill' }]);
+  const add = (id: string, source: string, contentHash: string) => ctx.platform.db.execute('INSERT INTO runs (id, skill_id, result_json, finished_at, status) VALUES (?, ?, ?, ?, ?)', [id, 'skill', JSON.stringify({ grade: 'F', meta: { identity: { source, contentHash } } }), '2026-01-01', 'done']);
+  await add('other-source', 'local:/different/skill', hash);
+  await add('old-content', `local:${join(root, 'skill')}`, 'old-hash');
+  expect(await install.run([join(root, 'skill'), '--agent', 'claude', '--scope', 'global'], ctx)).toBe(0);
+});
+it('blocks the same source and content with a recorded F', async () => {
+  const { hashFiles } = await import('@somm/core');
+  const contentHash = await hashFiles([{ path: 'SKILL.md', contents: '# skill' }]);
+  const record = { grade: 'F', meta: { identity: { source: `local:${join(root, 'skill')}`, contentHash } } };
+  await ctx.platform.db.execute('INSERT INTO runs (id, skill_id, result_json, finished_at, status) VALUES (?, ?, ?, ?, ?)', ['bad', 'skill', JSON.stringify(record), '2026-01-01', 'done']);
+  expect(await install.run([join(root, 'skill'), '--agent', 'claude', '--scope', 'global'], ctx)).toBe(2);
+});
+it('refuses to run a skill whose matching content previously received F', async () => {
+  const { hashFiles } = await import('@somm/core');
+  const contentHash = await hashFiles([{ path: 'SKILL.md', contents: '# skill' }]);
+  const record = { grade: 'F', meta: { identity: { source: `local:${join(root, 'skill')}`, contentHash } } };
+  await ctx.platform.db.execute('INSERT INTO runs (id, skill_id, result_json, finished_at, status) VALUES (?, ?, ?, ?, ?)', ['bad', 'skill', JSON.stringify(record), '2026-01-01', 'stopped']);
+  expect(await test.run([join(root, 'skill'), '--project', root, '--agent', 'claude', '--task', 'work', '--yes'], ctx)).toBe(2);
+  expect(lines[0]).toBe('// somm: corked');
+});
+it('finds matching identity even if the recorded skill name changed', async () => {
+  const { hashFiles } = await import('@somm/core');
+  const contentHash = await hashFiles([{ path: 'SKILL.md', contents: '# skill' }]);
+  const record = { grade: 'F', meta: { identity: { source: `local:${join(root, 'skill')}`, contentHash } } };
+  await ctx.platform.db.execute('INSERT INTO runs (id, skill_id, result_json, status) VALUES (?, ?, ?, ?)', ['bad', 'old-name', JSON.stringify(record), 'stopped']);
+  expect(await install.run([join(root, 'skill'), '--agent', 'claude', '--scope', 'global'], ctx)).toBe(2);
+});
+it('accepts a completed test only for the same source and content', async () => {
+  await writeFile(join(root, 'skill', 'SKILL.md'), 'rm -rf /');
+  const { hashFiles } = await import('@somm/core');
+  const hash = await hashFiles([{ path: 'SKILL.md', contents: 'rm -rf /' }]);
+  const record = { grade: 'C', verdict: { line: 'ok', rating: 'conditional' }, warnings: [], meta: { identity: { source: `local:${join(root, 'skill')}`, contentHash: hash } } };
+  ctx.confirm = async () => false;
+  await ctx.platform.db.execute('INSERT INTO runs (id, skill_id, result_json, status) VALUES (?, ?, ?, ?)', ['good', 'skill', JSON.stringify(record), 'done']);
+  expect(await install.run([join(root, 'skill'), '--agent', 'claude', '--scope', 'global'], ctx)).toBe(0);
+});

@@ -26,16 +26,23 @@ if (values.help || !command) {
     else console.error('// somm: unknown command');
     process.exitCode = 1;
   } else {
+    try {
     const { createNodePlatform } = await import('@somm/core/node');
-    const ask = async (question: string) => {
+    const ask = async (question: string, signal?: AbortSignal) => {
       if (!stdin.isTTY) return '';
       const rl = createInterface({ input: stdin, output: stderr });
-      try { return await rl.question(question); } finally { rl.close(); }
+      try { return await rl.question(question, { signal }); } finally { rl.close(); }
     };
     process.exitCode = await commands[name].run(argv.slice(command.index + 1), {
       platform: await createNodePlatform(), out: console.log, err: console.error,
-      json: values.json === true, confirm: async question => /^(y|yes)$/i.test((await ask(`${question} [y/N] `)).trim()),
+      json: values.json === true, confirm: async (question, signal?: AbortSignal) => /^(y|yes)$/i.test((await ask(`${question} [y/N] `, signal)).trim()),
       select: ask,
     } as Parameters<typeof test.run>[1] & { select: typeof ask });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (values.json) console.log(JSON.stringify({ somm: 'error', error: message }));
+      else console.error(`// somm: error\n${message.replace(/[\x00-\x1f\x7f-\x9f]/g, ' ')}`);
+      process.exitCode = 1;
+    }
   }
 }

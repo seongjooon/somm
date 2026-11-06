@@ -9,13 +9,13 @@ import { DEFAULT_TIMEOUTS, invokeAgent, makeScrub, type Timeouts } from './exec'
 import { compare, summarize } from './summary';
 import { parseVerdict, sommTag, verdictPrompt } from './verdict';
 
-export interface RunMeta { skill: string; agent: string; auth: string; runs: string; task: string; startedAt: string; finishedAt: string }
+export interface RunMeta { identity?: { source: string; contentHash: string }; skill: string; agent: string; auth: string; runs: string; task: string; startedAt: string; finishedAt: string }
 export interface RunResult {
   runId: string; a: ArmMetrics[]; b: ArmMetrics[]; contamination: Contamination; verdict: Verdict | null;
   grade: Grade; tag: SommTag; confidence: 'low' | 'normal'; warnings: string[]; meta: RunMeta;
 }
 export interface RunABRequest {
-  runId: string; skill: { name: string; files: SkillFile[] }; staticGrade: Exclude<Grade, 'F'>; projectDir: string; task: string;
+  runId: string; skill: { name: string; files: SkillFile[] }; identity?: { source: string; contentHash: string }; staticGrade: Exclude<Grade, 'F'>; projectDir: string; task: string;
   opts: RunOptions; signal: AbortSignal; onEvent: (arm: string, e: AgentEvent) => void;
   timeouts?: Partial<Timeouts>;   // Tests inject tiny values; defaults are DEFAULT_TIMEOUTS.
 }
@@ -62,7 +62,7 @@ async function execute(p: Platform, deps: { agent: AgentAdapter; sandbox: Sandbo
     return {
       runId: req.runId, a, b, verdict, grade, tag: sommTag(verdict?.rating ?? null, grade), warnings: [...warnings],
       contamination: cont, confidence: opts.runs === 'quick' || okMin < 3 ? 'low' : 'normal',
-      meta: { skill: skill.name, agent: opts.agent, auth: opts.auth, runs: opts.runs, task: req.task, startedAt, finishedAt: new Date().toISOString() },
+      meta: { ...(req.identity ? { identity: req.identity } : {}), skill: skill.name, agent: opts.agent, auth: opts.auth, runs: opts.runs, task: req.task, startedAt, finishedAt: new Date().toISOString() },
     };
   };
 

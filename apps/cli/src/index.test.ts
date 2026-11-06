@@ -42,3 +42,11 @@ test('prints a single JSON object for unknown commands', async () => {
   expect(result.err).toEqual([]);
   expect(result.code).toBe(1);
 });
+test('returns a structured JSON error if platform initialization fails', async () => {
+  const { createNodePlatform } = await import('@somm/core/node');
+  vi.mocked(createNodePlatform).mockRejectedValueOnce(new Error('database unavailable'));
+  const result = await invoke(['search', 'x', '--json']);
+  expect(result.code).toBe(1);
+  expect(result.out).toHaveLength(1);
+  expect(JSON.parse(result.out[0])).toEqual({ somm: 'error', error: 'database unavailable' });
+});
