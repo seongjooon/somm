@@ -43,6 +43,7 @@ Source of truth: `docs/PRD.md`. Read it before planning. Do not build anything l
 - Implementers are started only through Paseo handoff.
 - Roles: Claude is the brain (lead, planning, review, hard implementation). Codex runs light, well-specified implementation on Claude's instructions.
 - Models (main and sub agents): Claude `claude-sonnet-5-5` with thinking `low`; Codex `gpt-6.1-terra` with thinking `low`.
+- Fallback: if Codex hits its usage limit first, hand the remaining work to Claude (same models rule), and switch back when Codex is available.
 - Review defaults to one Claude `/paseo-advisor`. Use `/paseo-committee` only for hard bugs.
 - One task = one session. Archive the session when the task is done.
 
