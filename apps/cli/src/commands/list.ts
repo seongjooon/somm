@@ -1,6 +1,6 @@
 import { parseArgs } from 'node:util';
 import { createAgents, type AgentId } from '@somm/core';
-import { emit, type CliContext } from '../output';
+import { emit, humanField, type CliContext } from '../output';
 
 export async function run(args: string[], ctx: CliContext): Promise<number> {
   try {
@@ -12,11 +12,11 @@ export async function run(args: string[], ctx: CliContext): Promise<number> {
     const installed = (await Promise.all(ids.map(id => agents[id].listInstalled(values.project)))).flat();
     const human = statuses.flatMap(status => [
       `${status.agent}: ${!status.installed ? 'Not installed' : status.loggedIn === false ? 'Not logged in' : status.loggedIn === 'unknown' ? 'Login status unknown' : 'Logged in'}`,
-      ...installed.filter(item => item.agent === status.agent).map(item => `  ${item.scope}: ${item.name} | ${item.enabled ? 'enabled' : 'disabled'} | ${item.managedBySomm ? 'managed by somm' : 'not managed by somm'}`),
+      ...installed.filter(item => item.agent === status.agent).map(item => `  ${item.scope}: ${humanField(item.name)} | ${item.enabled ? 'enabled' : 'disabled'} | ${item.managedBySomm ? 'managed by somm' : 'not managed by somm'}`),
     ]);
     emit(ctx, `${installed.length} skills installed`, human, { installed, agents: statuses }); return 0;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    emit(ctx, 'error', [message], { error: message }); return 1;
+    emit(ctx, 'error', [humanField(message)], { error: message }); return 1;
   }
 }

@@ -12,3 +12,12 @@ test('prints only one JSON object', () => {
   expect(JSON.parse(lines[0])).toEqual({ somm: '3 skills found', results: [] });
   expect(lines[0]).not.toContain('//');
 });
+test('sanitizes terminal controls only in human output', () => {
+  const lines: string[] = [];
+  const ctx: CliContext = { platform: undefined!, err: () => {}, confirm: async () => false, out: (s: string) => { lines.push(s); }, json: false };
+  emit(ctx, 'tag\x1b]0;title\x07', ['a\rb\u009bc\td'], { text: 'a\x1bb' });
+  expect(lines).toEqual(['// somm: tag?]0;title?', 'a?b?c\td']);
+  lines.length = 0; ctx.json = true;
+  emit(ctx, 'tag\x1b', [], { text: 'a\x1bb' });
+  expect(JSON.parse(lines[0])).toEqual({ somm: 'tag\x1b', text: 'a\x1bb' });
+});
