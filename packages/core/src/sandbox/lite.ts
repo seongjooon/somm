@@ -114,14 +114,22 @@ export function createLiteSandbox(p: Platform, bins: Record<string, string | nul
     async preparePreflight(projectDir, runId) {
       return this.prepare(projectDir, runId, { deferDependencies: true });
     },
-    async prepareDependencies(base) {
+    async prepareDependencies(base, options) {
       await owned(base);
       if (!base.endsWith('/base')) throw new Error('Expected sandbox base');
       const runId = base.slice(runs.length + 1, -5);
       const source = pending.get(runId);
       if (!source) throw new Error('No pending dependency preparation');
       pending.delete(runId);
-      return prepareDeps(p, bins, source, base, active.get(runId)!);
+      const deps = await prepareDeps(p, bins, source, base, active.get(runId)!, options);
+      options?.signal?.throwIfAborted();
+      await p.fs.writeText(`${base}/.git/config`, configs.get(runId)!);
+      await p.fs.remove(`${base}/.git/info/attributes`);
+      await p.fs.writeText(`${base}/.git/info/exclude`, [...excluded].filter(x => x !== '.git').join('/\n') + '/\n');
+      await git(base, ['add', '-Af', '--', '.', ...[...excluded].filter(x => x !== '.git').map(x => `:(glob,exclude)**/${x}/**`)]);
+      await git(base, ['commit', '--allow-empty', '-qm', 'dependencies']);
+      options?.signal?.throwIfAborted();
+      return deps;
     },
     async split(base, arms) {
       await owned(base);

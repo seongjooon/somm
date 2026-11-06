@@ -60,3 +60,9 @@ it('preserves proposal residue in JSON output', async () => {
   expect(await run(options, ctx)).toBe(1); expect(lines).toHaveLength(1);
   expect(JSON.parse(lines[0]).contamination).toMatchObject({ status: 'contaminated', targetInResidue: true, residue: ['other', 'skill'] });
 });
+
+it('locates all supported dependency installers for the sandbox', async () => {
+  const calls: string[][] = []; ctx.platform.proc.which = async names => { calls.push(names); return Object.fromEntries(names.map(n => [n, null])); };
+  expect(await run(args(), ctx)).toBe(0);
+  expect(calls[0]).toEqual(expect.arrayContaining(['pnpm', 'npm', 'yarn', 'uv']));
+});

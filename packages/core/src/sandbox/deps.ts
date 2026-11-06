@@ -2,7 +2,8 @@ import type { Platform } from '../platform';
 import type { DepsResult, SandboxWarning } from './index';
 import { checkLinks, copy, findDeps, lockfiles, sanitize, warn } from './files';
 export async function prepareDeps(p: Platform, bins: Record<string, string | null>, source: string, base: string,
-  warnings: SandboxWarning[]): Promise<DepsResult> {
+  warnings: SandboxWarning[], options: { signal?: AbortSignal; timeoutMs?: number } = {}): Promise<DepsResult> {
+  options.signal?.throwIfAborted();
   let drift = false;
   let cloneFailed = false;
   for (const file of lockfiles) {
@@ -40,7 +41,13 @@ export async function prepareDeps(p: Platform, bins: Record<string, string | nul
       warn(warnings, 'deps-install-failed');
       return { mode: 'none', cmd, ok: false, log: `${prefix}${bin} not found` };
     }
-    const result = await p.proc.run(bins[bin]!, args, { cwd: base });
+    const deadline = AbortSignal.timeout(options.timeoutMs ?? 10 * 60_000);
+    const signal = options.signal ? AbortSignal.any([options.signal, deadline]) : deadline;
+    let result;
+    try { result = await p.proc.run(bins[bin]!, args, { cwd: base, signal }); }
+    catch (error) { if (deadline.aborted && !options.signal?.aborted) throw new Error('Dependency installation timed out'); throw error; }
+    options.signal?.throwIfAborted();
+    if (deadline.aborted) throw new Error('Dependency installation timed out');
     if (result.code !== 0) warn(warnings, 'deps-install-failed');
     return { mode: 'installed', cmd, ok: result.code === 0, log: prefix + result.stdout + result.stderr };
   }

@@ -20,7 +20,7 @@ export async function proposeTasks(p: Platform, deps: { agent: AgentAdapter; san
     if (!deps.sandbox.preparePreflight || !deps.sandbox.prepareDependencies) throw new Error('Sandbox does not support safe preflight');
     const prepared = await deps.sandbox.preparePreflight(req.projectDir, req.runId);
     req.signal.throwIfAborted();
-    const residue = await deps.agent.enumerateSkills(prepared.base);
+    let residue = await deps.agent.enumerateSkills(prepared.base);
     if (residue.includes(req.skill.name)) throw new TargetInResidueError(req.skill.name, residue);
     req.signal.throwIfAborted();
     const status = await Promise.race([deps.agent.detect(), new Promise<never>((_, reject) => {
@@ -29,7 +29,10 @@ export async function proposeTasks(p: Platform, deps: { agent: AgentAdapter; san
     })]);
     if (!status.installed || status.loggedIn === false) throw new Error('Agent unavailable or not logged in. Install the agent and log in, then retry.');
     req.signal.throwIfAborted();
-    await deps.sandbox.prepareDependencies(prepared.base);
+    await deps.sandbox.prepareDependencies(prepared.base, { signal: req.signal });
+    req.signal.throwIfAborted();
+    residue = await deps.agent.enumerateSkills(prepared.base);
+    if (residue.includes(req.skill.name)) throw new TargetInResidueError(req.skill.name, residue);
     req.signal.throwIfAborted();
     const tree: string[] = [];
     async function visit(dir: string, prefix = ''): Promise<void> {
