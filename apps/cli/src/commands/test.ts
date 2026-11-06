@@ -23,7 +23,7 @@ export async function run(args: string[], ctx: CliContext): Promise<number> {
     if (history.blocked || history.legacyBlocked) { emit(ctx, 'corked', [history.blocked ? 'This skill previously received grade F.' : 'A legacy F record has no source or content identity. Review it before testing a skill with this name.'], { legacyRecord: history.legacyBlocked && !history.blocked }); return 2; }
     const report = scanSkill(skill.files, { name: skill.name });
     const traits = skillTraits(skill.files);
-    const bins = await ctx.platform.proc.which(['git', 'tar', 'cp', 'docker']);
+    const bins = await ctx.platform.proc.which(['git', 'tar', 'cp', 'docker', 'pnpm', 'npm', 'yarn', 'uv']);
     if (!['A', 'B'].includes(report.grade) || traits.hasScripts || traits.hasHooks || traits.hasMcp) { emit(ctx, 'needs to breathe', ['Static check only'], { report, traits }); return 1; }
     const estimate = estimateUsage(opts, !!v.task, []);
     if (!ctx.json) {

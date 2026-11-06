@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, writeFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createNodePlatform } from '@somm/core/node';
@@ -24,4 +24,23 @@ it.each(['SIGINT', 'SIGTERM'] as const)('%s aborts the actual runner and cleans 
   const output: string[] = [];
   const code = await run([join(root, 'skill'), '--agent', 'claude', '--project', root, '--task', 'work', '--yes'], { platform: p, json: false, out: s => output.push(s), err: () => {}, confirm: async () => true });
   expect(code).toBe(1); expect(aborted).toBe(true); expect(cleaned).toBe(true); expect(output).toContain('Run cancelled');
+});
+
+it('SIGINT terminates the real sandbox installer child and removes its run', async () => {
+  root = await mkdtemp(join(tmpdir(), 'somm-cli-installer-')); process.env.SOMM_DATA_DIR = join(root, 'data');
+  const project = join(root, 'project'); await mkdir(project); await mkdir(join(root, 'home')); await mkdir(join(root, 'skill'));
+  await writeFile(join(root, 'skill', 'SKILL.md'), '# skill'); await writeFile(join(project, 'pnpm-lock.yaml'), 'fixture');
+  const p = await createNodePlatform(); p.home = join(root, 'home'); p.env = {};
+  const original = p.proc; let pid = 0;
+  p.proc = { which: async names => Object.fromEntries(names.map(n => [n, n === 'git' ? 'git' : n === 'pnpm' ? 'fake-installer' : null])), run: async (bin, args, options) => {
+    if (bin === 'fake-installer') return original.run(process.execPath, ['-e', "process.stdout.write(String(process.pid)+'\\n'); setInterval(() => {}, 1000)"], { ...options, onLine: (_stream, line) => { pid = Number(line); process.emit('SIGINT'); } });
+    return original.run(bin, args, { ...options, env: { ...options?.env, HOME: p.home } });
+  } };
+  deps.agent = { id: 'claude', detect: async () => ({ installed: true, loggedIn: true }), enumerateSkills: async () => [] } as unknown as AgentAdapter;
+  const core = await vi.importActual<typeof import('@somm/core')>('@somm/core');
+  deps.sandbox = core.createLiteSandbox(p, { git: 'git', pnpm: 'fake-installer' });
+  const output: string[] = [];
+  expect(await run([join(root, 'skill'), '--agent', 'claude', '--project', project, '--task', 'work', '--yes'], { platform: p, json: false, out: s => output.push(s), err: () => {}, confirm: async () => true })).toBe(1);
+  expect(output).toContain('Run cancelled'); expect(pid).toBeGreaterThan(0); expect(() => process.kill(pid, 0)).toThrow();
+  expect(await readdir(join(root, 'data/runs'))).toEqual([]);
 });

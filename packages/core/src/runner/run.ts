@@ -78,8 +78,11 @@ async function execute(p: Platform, deps: { agent: AgentAdapter; sandbox: Sandbo
   if (!status.installed || status.loggedIn === false) { warnings.push(...prepared.warnings, 'auth'); return result(null, []); }
   signal.throwIfAborted();
 
-  await sandbox.prepareDependencies(prepared.base);
+  await sandbox.prepareDependencies(prepared.base, { signal });
   warnings.push(...prepared.warnings);
+  signal.throwIfAborted();
+  residue = await agent.enumerateSkills(prepared.base);
+  if (residue.includes(skill.name)) { warnings.push('target-in-residue'); return result(null, []); }
   signal.throwIfAborted();
   const count = opts.runs === 'thorough' ? 3 : 1;
   const names = Array.from({ length: count }, (_, i) => [`a-${i}`, `b-${i}`]).flat();
