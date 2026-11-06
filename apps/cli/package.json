@@ -3,14 +3,17 @@
   "private": true,
   "type": "module",
   "bin": {
-    "somm": "dist/cli.js"
+    "somm": "bin/somm.mjs"
   },
   "scripts": {
-    "test": "vitest run",
+    "test": "node --test bin/*.test.mjs && vitest run",
     "check": "tsc --noEmit",
     "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/cli.js"
   },
   "dependencies": {
     "@somm/core": "workspace:*"
+  },
+  "engines": {
+    "node": "^22.13.0 || >=23.4.0"
   }
 }
