@@ -70,7 +70,8 @@ export async function runAB(p: Platform, deps: { agent: AgentAdapter; sandbox: S
           for (const f of skill.files) {
             const target = `${root}/${f.path}`;
             await p.fs.mkdirp(parentDir(target));
-            await p.fs.writeText(target, f.contents);
+            if (typeof f.contents === 'string') await p.fs.writeText(target, f.contents);
+            else await p.fs.writeBytes(target, f.contents);
           }
           cleanupPaths.push(root);
         }

@@ -10,7 +10,7 @@ import type { Sandbox } from '../sandbox';
 import { expect, test } from 'vitest';
 import type { AgentEvent } from '../types';
 
-export interface Call { bin: string; args: string[]; cwd: string; env: Record<string, string | null>; signal?: AbortSignal; skillPresent: boolean }
+export interface Call { bin: string; args: string[]; cwd: string; env: Record<string, string | null>; signal?: AbortSignal; skillPresent: boolean; binary: Uint8Array | null }
 export type Script = (call: Call, n: number) => Promise<{ lines: string[]; code: number; stderr?: string }>;
 export const line = (e: Omit<AgentEvent, 'raw'>) => JSON.stringify(e);
 export const okLines = (skills: string[] = []) => [
@@ -36,7 +36,8 @@ export async function makeEnv(opts: { script?: Script; loggedIn?: boolean | 'unk
     proc: {
       async which() { return {}; },
       async run(bin, args, o = {}) {
-        const call: Call = { bin, args, cwd: o.cwd ?? '', env: o.env ?? {}, signal: o.signal, skillPresent: await nodeFs.exists(join(o.cwd ?? '', '.claude/skills/tdd/SKILL.md')) };
+        const call: Call = { bin, args, cwd: o.cwd ?? '', env: o.env ?? {}, signal: o.signal, skillPresent: await nodeFs.exists(join(o.cwd ?? '', '.claude/skills/tdd/SKILL.md')),
+          binary: await nodeFs.readBytes(join(o.cwd ?? '', '.claude/skills/tdd/assets/logo.bin')).catch(() => null) };
         if (o.signal?.aborted) throw new DOMException('Process aborted', 'AbortError');
         calls.push(call);
         const aborted = new Promise<never>((_, rej) => o.signal?.addEventListener('abort', () => rej(new DOMException('Process aborted', 'AbortError')), { once: true }));
