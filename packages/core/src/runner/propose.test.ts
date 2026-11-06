@@ -21,3 +21,13 @@ test('rejects the target in shared residue before detection or agent calls and c
   await expect(proposeTasks(e.p, e, { runId: 'proposal', projectDir: root, skill: { name: 'tdd', description: '' }, opts: { agent: 'claude', auth: 'subscription', runs: 'quick' }, signal: new AbortController().signal })).rejects.toMatchObject({ name: 'TargetInResidueError', skillName: 'tdd' });
   expect(detections).toBe(0); expect(e.calls).toHaveLength(0); expect(e.cleaned).toEqual(['proposal']);
 });
+test.each(['cancel', 'timeout'] as const)('preserves proposal %s when cleanup fails without leaking a key', async mode => {
+  const key = 'sk-test-proposal-secret'; const controller = new AbortController(); const e = await makeEnv(); root = e.root;
+  e.sandbox.prepareDependencies = async () => { if (mode === 'cancel') { controller.abort(); controller.signal.throwIfAborted(); } throw new Error(`timeout ${key}`); };
+  e.sandbox.cleanup = async () => { throw new Error(`cleanup ${key}`); };
+  let failure: unknown;
+  try { await proposeTasks(e.p, e, { runId: 'proposal', projectDir: root, skill: { name: 'tdd', description: '' }, opts: { agent: 'claude', auth: 'isolated', runs: 'quick', apiKey: key, budgetUsd: 1 }, signal: controller.signal }); } catch (error) { failure = error; }
+  expect(failure).toMatchObject({ name: 'RunCleanupError', primaryName: mode === 'cancel' ? 'AbortError' : 'Error', recoveryPath: `${e.p.dataDir}/runs/proposal` });
+  const err = failure as Error & { cleanupMessage: string; primaryMessage: string; cause: Error };
+  expect(err.cleanupMessage).toContain('[REDACTED]'); expect(JSON.stringify({ message: err.message, cause: err.cause.message, cleanup: err.cleanupMessage, stack: err.stack })).not.toContain(key);
+});

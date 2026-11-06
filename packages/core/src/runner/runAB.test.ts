@@ -206,3 +206,16 @@ test('marks an incomplete run stopped', async () => {
   const rows = await e.db.select<{ status: string }>('SELECT status FROM runs WHERE id = ?', ['run1']);
   expect(rows[0].status).toBe('stopped');
 });
+test.each(['cancel', 'timeout'] as const)('preserves %s and redacts both errors when cleanup fails', async mode => {
+  const secret = 'sk-test-cleanup-secret'; const controller = new AbortController();
+  const e = await setup();
+  e.sandbox.prepareDependencies = async () => { if (mode === 'cancel') { controller.abort(); controller.signal.throwIfAborted(); } throw new Error(`Dependency installation timed out: ${secret}`); };
+  e.sandbox.cleanup = async () => { throw new Error(`cleanup failed with ${secret}`); };
+  let failure: unknown;
+  try { await runAB(e.p, e, req(e, { signal: controller.signal, opts: { ...quick, apiKey: secret } })); } catch (error) { failure = error; }
+  expect(failure).toMatchObject({ name: 'RunCleanupError', primaryName: mode === 'cancel' ? 'AbortError' : 'Error', recoveryPath: `${e.p.dataDir}/runs/run1`, cause: { name: mode === 'cancel' ? 'AbortError' : 'Error' } });
+  const error = failure as Error & { cleanupMessage: string; primaryMessage: string; cause: Error };
+  expect(error.cleanupMessage).toContain('[REDACTED]');
+  if (mode === 'timeout') expect(error.primaryMessage).toContain('timed out');
+  expect(JSON.stringify({ message: error.message, stack: error.stack, cleanup: error.cleanupMessage, primary: error.primaryMessage, cause: error.cause.message })).not.toContain(secret);
+});
