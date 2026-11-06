@@ -1,0 +1,5 @@
+@import "tailwindcss";
+body { margin: 0; font-family: system-ui, sans-serif; background: #171717; color: #eee; }
+nav { display: flex; gap: 1rem; padding: 1rem; }
+main { padding: 2rem; }
+button { cursor: pointer; }
