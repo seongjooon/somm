@@ -6,7 +6,7 @@
     "somm": "bin/somm.mjs"
   },
   "scripts": {
-    "test": "node --test bin/*.test.mjs && vitest run",
+    "test": "node --test bin/*.test.mjs && vitest run src",
     "check": "tsc --noEmit",
     "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/cli.js"
   },
