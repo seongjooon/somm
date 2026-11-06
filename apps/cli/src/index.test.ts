@@ -1,5 +1,6 @@
 import { afterEach, expect, test, vi } from 'vitest';
 import * as search from './commands/search';
+vi.mock('@somm/core/node', () => ({ createNodePlatform: vi.fn(async () => ({})) }));
 vi.mock('./commands/search', () => ({ run: vi.fn(async () => 1) }));
 const argv = process.argv;
 const exitCode = process.exitCode;
