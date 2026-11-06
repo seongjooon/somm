@@ -1,12 +1,13 @@
 # somm STATUS
 
-_Last updated: 2026-11-06 (lead session 1)_
+_Last updated: 2026-11-06 (lead session 1, after Wave 1)_
 
 ## Done
 - PRD updated: Auth (Subscription/Isolated) and Runs (Quick/Thorough) options, three verdict lines.
 - Spec confirmed: `docs/superpowers/specs/2026-11-06-somm-mvp-design.md`
 - Plan approved: `docs/superpowers/plans/2026-11-06-somm-mvp.md` (T1–T15 in Waves 0–8, T16–T18 outlined)
 - `AGENTS.md`: monorepo stack, Multi-agent and Tooling rules.
+- **Wave 1 done.** T2 monorepo scaffold and shared contracts (PR #1), T3 Node/Tauri platform implementations (PR #2). Each was reviewed once by `/paseo-advisor` (APPROVE WITH FIXES); fixes were applied before merge. Plan Task 3 now carries follow-up notes for later tasks.
 - **T1 isolation experiments (Wave 0) done.** Results: `docs/experiments/2026-11-06-isolation.md`. Fixtures: `packages/core/fixtures/agent-events/`. Script: `scripts/experiments/isolation.sh`.
 
 ## Decisions from T1 (user-approved)
@@ -20,10 +21,11 @@ _Last updated: 2026-11-06 (lead session 1)_
 - `npx skills` (N1): on hold. Use only its path table as a reference.
 
 ## Next
-1. **Wave 1:** T2, then T3. Each goes through Paseo handoff to Codex, in its own worktree from `origin/main`. Check each with `/paseo-advisor`, then the lead merges without waiting for the user. If tests fail before merge, stop and report.
-2. Wave 2: T4 ∥ T5.
+1. **Wave 2:** T4 agent adapters ∥ T5 static scan (parallel, one worktree each from `origin/main`, Paseo handoff to Codex, `/paseo-advisor` review, the lead merges).
+2. Wave 3: T6 ∥ T7.
 
 ## Open items
+- Not verified in Wave 1: Finder-launched app, real agent CLIs through `spawn_agent`, runtime read of `~/.codex/skills`, non-default `CODEX_HOME` read scope (handle before T14).
 - Not verified in T1: both Isolated combos (no API key), whether Codex `--ignore-user-config` drops `config.toml` MCP servers, and side effects of the temp `HOME` on agent shell commands.
 - Before release: spec §13 checklist (Apple Developer account at $99/yr, recheck the OpenAI terms, secure the npm name `somm`).
 - Installing ui-ux-pro-max (T11) and the real-subscription smoke tests (T10, T15) need user approval first.
