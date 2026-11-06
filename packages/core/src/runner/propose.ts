@@ -3,6 +3,7 @@ import type { Platform } from '../platform';
 import type { Sandbox } from '../sandbox';
 import type { RunOptions, SkillMeta } from '../types';
 import { invokeAgent, makeScrub } from './exec';
+import { RunCleanupError } from './cleanup';
 import { parseTasks, proposeTasksPrompt } from './verdict';
 
 export class TargetInResidueError extends Error {
@@ -15,6 +16,7 @@ export class TargetInResidueError extends Error {
 export async function proposeTasks(p: Platform, deps: { agent: AgentAdapter; sandbox: Sandbox }, req: {
   runId: string; projectDir: string; skill: Pick<SkillMeta, 'name' | 'description'>; opts: RunOptions; signal: AbortSignal;
 }): Promise<string[]> {
+  let primary: unknown, failed = false;
   try {
     req.signal.throwIfAborted();
     if (!deps.sandbox.preparePreflight || !deps.sandbox.prepareDependencies) throw new Error('Sandbox does not support safe preflight');
@@ -50,5 +52,9 @@ export async function proposeTasks(p: Platform, deps: { agent: AgentAdapter; san
     if (out.budget) throw new Error('Agent budget exceeded while proposing tasks.');
     if (out.timedOut || out.code !== 0) throw new Error('Agent could not propose tasks.');
     return parseTasks(out.events.map(e => e.text ?? '').join('\n'));
-  } finally { await deps.sandbox.cleanup(req.runId); }
+  } catch (error) { primary = error; failed = true; throw error; }
+  finally {
+    try { await deps.sandbox.cleanup(req.runId); }
+    catch (cleanup) { throw new RunCleanupError(p, req.runId, req.opts.apiKey, failed ? primary : new Error('Task proposal completed'), cleanup); }
+  }
 }

@@ -5,6 +5,7 @@ import type { Sandbox } from '../sandbox';
 import type { AgentEvent, ArmMetrics, Canary, Contamination, Grade, Inventory, RunOptions, SkillFile, SommTag, Verdict } from '../types';
 import { runArm } from './arm';
 import { contamination } from './contamination';
+import { recoveryPath, RunCleanupError } from './cleanup';
 import { DEFAULT_TIMEOUTS, invokeAgent, makeScrub, type Timeouts } from './exec';
 import { compare, summarize } from './summary';
 import { parseVerdict, sommTag, verdictPrompt } from './verdict';
@@ -12,7 +13,7 @@ import { parseVerdict, sommTag, verdictPrompt } from './verdict';
 export interface RunMeta { identity?: { source: string; contentHash: string }; skill: string; agent: string; auth: string; runs: string; task: string; startedAt: string; finishedAt: string }
 export interface RunResult {
   runId: string; a: ArmMetrics[]; b: ArmMetrics[]; contamination: Contamination; verdict: Verdict | null;
-  grade: Grade; tag: SommTag; confidence: 'low' | 'normal'; warnings: string[]; meta: RunMeta;
+  grade: Grade; tag: SommTag; confidence: 'low' | 'normal'; warnings: string[]; cleanupRecoveryPath?: string; meta: RunMeta;
 }
 export interface RunABRequest {
   runId: string; skill: { name: string; files: SkillFile[] }; identity?: { source: string; contentHash: string }; staticGrade: Exclude<Grade, 'F'>; projectDir: string; task: string;
@@ -33,10 +34,13 @@ const withTimeout = <T>(work: Promise<T>, ms: number): Promise<T | 'timeout'> =>
 export async function runAB(p: Platform, deps: { agent: AgentAdapter; sandbox: Sandbox }, req: RunABRequest): Promise<RunResult> {
   let outcome: RunResult | undefined, thrown: unknown, failed = false;
   try { outcome = await execute(p, deps, req); } catch (err) { thrown = err; failed = true; }
-  // Cleanup always runs, also after an abort or a thrown error; its failure is reported, never masks the real error.
-  const cleaned = await deps.sandbox.cleanup(req.runId).then(() => true, () => false);
+  try { await deps.sandbox.cleanup(req.runId); }
+  catch (cleanup) {
+    if (failed) throw new RunCleanupError(p, req.runId, req.opts.apiKey, thrown, cleanup);
+    return { ...outcome!, warnings: [...outcome!.warnings, 'cleanup-failed'], cleanupRecoveryPath: recoveryPath(p, req.runId, req.opts.apiKey) };
+  }
   if (failed) throw thrown;
-  return cleaned ? outcome! : { ...outcome!, warnings: [...outcome!.warnings, 'cleanup-failed'] };
+  return outcome!;
 }
 
 async function execute(p: Platform, deps: { agent: AgentAdapter; sandbox: Sandbox }, req: RunABRequest): Promise<RunResult> {

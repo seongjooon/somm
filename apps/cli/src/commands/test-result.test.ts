@@ -66,3 +66,14 @@ it('locates all supported dependency installers for the sandbox', async () => {
   expect(await run(args(), ctx)).toBe(0);
   expect(calls[0]).toEqual(expect.arrayContaining(['pnpm', 'npm', 'yarn', 'uv']));
 });
+it.each([false, true])('reports cancellation and cleanup failure with recovery path (json=%s)', async json => {
+  const { RunCleanupError } = await import('@somm/core'); const key = 'sk-test-cli-secret'; ctx.json = json;
+  fake.run.mockImplementation(async () => { process.emit('SIGINT'); throw new RunCleanupError(ctx.platform, 'abc', key, new DOMException('cancelled', 'AbortError'), new Error(`cleanup ${key}`)); });
+  expect(await run(args(), ctx)).toBe(1); expect(lines).toHaveLength(json ? 1 : 4);
+  expect(lines.join('\n')).toContain('Run cancelled'); expect(lines.join('\n')).toContain('cleanup'); expect(lines.join('\n')).toContain(`${ctx.platform.dataDir}/runs/abc`); expect(lines.join('\n')).not.toContain(key);
+  if (json) expect(JSON.parse(lines[0])).toMatchObject({ primaryName: 'AbortError', recoveryPath: `${ctx.platform.dataDir}/runs/abc` });
+});
+it('reports recovery path when only cleanup failed', async () => {
+  const r = { ...result(), warnings: ['cleanup-failed'], cleanupRecoveryPath: `${ctx.platform.dataDir}/runs/abc` }; fake.run.mockResolvedValue(r);
+  expect(await run(args(), ctx)).toBe(1); expect(lines).toContain(`Recovery path: ${ctx.platform.dataDir}/runs/abc`);
+});

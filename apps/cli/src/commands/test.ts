@@ -1,6 +1,6 @@
 import { parseArgs } from 'node:util';
 import { resolve } from 'node:path';
-import { createAgents, createLiteSandbox, runAB, proposeTasks, saveRun, scanSkill, skillTraits, estimateUsage, summarize, compare, hashFiles, type AgentId, type AgentEvent, type RunOptions } from '@somm/core';
+import { createAgents, createLiteSandbox, runAB, proposeTasks, saveRun, scanSkill, skillTraits, estimateUsage, summarize, compare, hashFiles, RunCleanupError, type AgentId, type AgentEvent, type RunOptions } from '@somm/core';
 import { emit, humanField, type CliContext } from '../output';
 import { loadSkill, skillHistory } from './install';
 
@@ -68,9 +68,17 @@ export async function run(args: string[], ctx: CliContext): Promise<number> {
       ...(target ? [`${humanField(skill.name)} is already visible to both arms (${opts.agent === 'codex' ? 'CODEX_HOME/skills or project skills' : 'project skills'}). Remove or rename it, then retry.`] : []),
       ...(result.warnings.includes('auth') ? [`Agent unavailable or not logged in. Install ${opts.agent} and log in, then retry.`] : []),
       ...result.warnings.map(w => `Warning: ${humanField(w)}`),
+      ...(result.cleanupRecoveryPath ? [`Recovery path: ${humanField(result.cleanupRecoveryPath)}`] : []),
     ];
     emit(ctx, result.tag.replace(/^\/\/ somm: /, ''), human, result);
     return result.tag === '// somm: corked' ? 2 : target || result.warnings.some(w => ['auth', 'detect-timeout', 'budget', 'verdict-auth', 'verdict-budget', 'verdict-timeout', 'verdict-failed', 'cleanup-failed'].includes(w)) || !result.verdict || result.a.length !== (opts.runs === 'thorough' ? 3 : 1) || result.b.length !== (opts.runs === 'thorough' ? 3 : 1) || [...result.a, ...result.b].some(a => !a.ok) ? 1 : 0;
-  } catch (error) { const message = controller.signal.aborted ? 'Run cancelled' : error instanceof Error ? error.message : String(error); emit(ctx, 'error', [humanField(message)], { error: message }); return 1; }
+  } catch (error) {
+    if (error instanceof RunCleanupError) {
+      const message = controller.signal.aborted ? 'Run cancelled' : `${error.primaryName}: ${error.primaryMessage}`;
+      const recovery = error.recoveryPath;
+      emit(ctx, 'error', [humanField(message), `Cleanup failed: ${humanField(error.cleanupMessage)}`, ...(recovery ? [`Recovery path: ${humanField(recovery)}`] : [])], { error: message, primaryName: error.primaryName, cleanupError: error.cleanupMessage, recoveryPath: recovery }); return 1;
+    }
+    const message = controller.signal.aborted ? 'Run cancelled' : error instanceof Error ? error.message : String(error); emit(ctx, 'error', [humanField(message)], { error: message }); return 1;
+  }
   finally { process.off('SIGINT', abort); process.off('SIGTERM', abort); }
 }
