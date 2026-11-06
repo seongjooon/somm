@@ -1,0 +1,8 @@
+- id: hooks-config
+  severity: medium
+  pattern: '["\x27]hooks["\x27]\s*:'
+  message: Hook configuration may execute commands automatically.
+- id: mcp-config
+  severity: medium
+  pattern: '["\x27]mcpServers["\x27]\s*:'
+  message: MCP configuration connects external tools or processes.

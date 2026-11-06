@@ -1,0 +1,10 @@
+- id: download
+  severity: medium
+  pattern: '\b(?:curl|wget)\b(?![^\r\n|]*\|\s*(?:bash|sh|zsh)\b)'
+  flags: i
+  message: External content is fetched; review its source and use.
+- id: secret-exfiltration
+  severity: critical
+  pattern: '(?:\bcurl\b[^;\r\n|]*(?:--data(?:-binary|-raw)?|-d)\s+["\x27]?@[^\s;|]*?(?:\.ssh[/\\][^\s;|]*|\.env\b|id_rsa\b|id_ed25519\b)|\bcat\s+[^;\r\n|]*(?:\.ssh[/\\][^;\r\n|]*|\.env\b|id_rsa\b|id_ed25519\b)[^;\r\n|]*\|\s*curl\b[^;\r\n|]*(?:--data(?:-binary)?|-d)\s+["\x27]?@-)'
+  flags: i
+  message: A secret file is passed directly or piped to an outbound POST body.

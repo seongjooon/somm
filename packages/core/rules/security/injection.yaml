@@ -1,0 +1,10 @@
+- id: ignore-instructions
+  severity: high
+  pattern: '(?:ignore\s+(?:all\s+)?(?:previous|prior)\s+instructions|이전\s*(?:지시|명령)(?:사항)?(?:를|을)?\s*무시)'
+  flags: i
+  message: Instructions attempt to override prior guidance.
+- id: conceal-actions
+  severity: high
+  pattern: '(?:do\s+not\s+tell\s+the\s+user|don\x27t\s+tell\s+the\s+user|사용자에게\s*알리지)'
+  flags: i
+  message: Instructions request hiding actions from the user.
