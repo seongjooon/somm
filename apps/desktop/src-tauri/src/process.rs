@@ -24,7 +24,7 @@ const ALLOWED: &[&str] = &[
     "claude", "codex", "git", "tar", "cp", "docker", "node", "npm", "npx", "pnpm", "yarn",
     "python3", "uv", "cargo", "go",
 ];
-fn is_allowed(name: &str, path: &str) -> bool {
+pub(crate) fn is_allowed(name: &str, path: &str) -> bool {
     ALLOWED.contains(&name)
         && Path::new(path).is_absolute()
         && Path::new(path).file_name().and_then(|n| n.to_str()) == Some(name)
@@ -49,35 +49,17 @@ fn signal(pid: u32, sig: &str) {
         .status();
 }
 #[tauri::command]
-pub async fn resolve_bins(names: Vec<String>) -> Result<HashMap<String, Option<String>>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let mut bins = HashMap::new();
-        for name in names {
-            if !ALLOWED.contains(&name.as_str()) {
-                return Err("Binary is not allowed".into());
-            }
-            let out = Command::new("/bin/zsh")
-                .args(["-lc", &format!("command -v {name}")])
-                .stdin(Stdio::null())
-                .output()
-                .map_err(|e| e.to_string())?;
-            let path = String::from_utf8_lossy(&out.stdout).trim().to_string();
-            let value = if out.status.success() && is_allowed(&name, &path) {
-                Some(path)
-            } else {
-                None
-            };
-            bins.insert(name, value);
-        }
-        Ok(bins)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+pub async fn resolve_bins(
+    state: State<'_, crate::environment::Environment>,
+    names: Vec<String>,
+) -> Result<HashMap<String, Option<String>>, String> {
+    Ok(state.resolve(names))
 }
 #[tauri::command]
 pub fn spawn_agent(
     app: tauri::AppHandle,
     state: State<Processes>,
+    environment: State<crate::environment::Environment>,
     id: String,
     bin_name: String,
     bin_path: String,
@@ -85,7 +67,7 @@ pub fn spawn_agent(
     cwd: Option<String>,
     env: HashMap<String, Option<String>>,
 ) -> Result<(), String> {
-    if !is_allowed(&bin_name, &bin_path) {
+    if !environment.permits(&bin_name, &bin_path) {
         return Err("Binary is not allowed".into());
     }
     let mut processes = state.0.lock().map_err(|e| e.to_string())?;
@@ -93,6 +75,7 @@ pub fn spawn_agent(
         return Err("Process id already exists".into());
     }
     let mut cmd = Command::new(bin_path);
+    environment.apply(&mut cmd);
     cmd.args(args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())

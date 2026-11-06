@@ -37,7 +37,8 @@ export const tauriProc: Proc = {
       opts.signal?.addEventListener('abort', abort, { once: true });
       if (opts.signal?.aborted) throw new DOMException('Process aborted', 'AbortError');
       const name = bin.split('/').pop()!;
-      const path = bin.startsWith('/') ? bin : (await this.which([name]))[name];
+      const resolved = (await this.which([name]))[name];
+      const path = bin.startsWith('/') && bin !== resolved ? null : resolved;
       if (!path) throw new Error(`Binary not found: ${name}`);
       await invoke('spawn_agent', { id, binName: name, binPath: path, args, cwd: opts.cwd ?? null, env: opts.env ?? {} });
       started = true;
