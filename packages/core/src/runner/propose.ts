@@ -5,18 +5,28 @@ import type { RunOptions, SkillMeta } from '../types';
 import { invokeAgent, makeScrub } from './exec';
 import { parseTasks, proposeTasksPrompt } from './verdict';
 
+export class TargetInResidueError extends Error {
+  constructor(public skillName: string, public residue: string[]) {
+    super('target-in-residue');
+    this.name = 'TargetInResidueError';
+  }
+}
+
 export async function proposeTasks(p: Platform, deps: { agent: AgentAdapter; sandbox: Sandbox }, req: {
   runId: string; projectDir: string; skill: Pick<SkillMeta, 'name' | 'description'>; opts: RunOptions; signal: AbortSignal;
 }): Promise<string[]> {
   try {
+    req.signal.throwIfAborted();
+    const prepared = await deps.sandbox.prepare(req.projectDir, req.runId);
+    req.signal.throwIfAborted();
+    const residue = await deps.agent.enumerateSkills(prepared.base);
+    if (residue.includes(req.skill.name)) throw new TargetInResidueError(req.skill.name, residue);
     req.signal.throwIfAborted();
     const status = await Promise.race([deps.agent.detect(), new Promise<never>((_, reject) => {
       const signal = AbortSignal.any([req.signal, AbortSignal.timeout(30_000)]);
       signal.addEventListener('abort', () => reject(req.signal.aborted ? req.signal.reason : new Error('Agent detection timed out')), { once: true });
     })]);
     if (!status.installed || status.loggedIn === false) throw new Error('Agent unavailable or not logged in. Install the agent and log in, then retry.');
-    req.signal.throwIfAborted();
-    const prepared = await deps.sandbox.prepare(req.projectDir, req.runId);
     req.signal.throwIfAborted();
     const tree: string[] = [];
     async function visit(dir: string, prefix = ''): Promise<void> {

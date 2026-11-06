@@ -44,3 +44,11 @@ it('includes the proposal call in the usage estimate', async () => {
   expect(await run(options, ctx)).toBe(0);
   expect(messages.join('\n')).toMatch(/proposal.*4 agent calls/i);
 });
+it('reports target-in-residue from proposal with the actionable verdict', async () => {
+  fake.propose.mockRejectedValue(Object.assign(new Error('target-in-residue'), { name: 'TargetInResidueError', skillName: 'skill' }));
+  const options = args().filter((_, i, a) => a[i] !== '--task' && a[i - 1] !== '--task');
+  expect(await run(options, ctx)).toBe(1);
+  expect(lines[0]).toBe('// somm: needs to breathe');
+  expect(lines.join('\n')).toContain('skill is already visible to both arms (CODEX_HOME/skills or project skills). Remove or rename it, then retry.');
+  expect(fake.run).not.toHaveBeenCalled();
+});

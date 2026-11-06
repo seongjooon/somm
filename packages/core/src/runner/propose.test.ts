@@ -15,3 +15,9 @@ test('abort stops the proposal process and cleans up', async () => {
   await expect(proposeTasks(e.p, e, { runId: 'proposal', projectDir: root, skill: { name: 'tdd', description: '' }, opts: { agent: 'claude', auth: 'subscription', runs: 'quick' }, signal: controller.signal })).rejects.toMatchObject({ name: 'AbortError' });
   expect(e.calls[0].signal?.aborted).toBe(true); expect(e.cleaned).toEqual(['proposal']);
 });
+test('rejects the target in shared residue before detection or agent calls and cleans up', async () => {
+  const e = await makeEnv({ residue: ['tdd'] }); root = e.root;
+  let detections = 0; const detect = e.agent.detect; e.agent.detect = async () => { detections++; return detect(); };
+  await expect(proposeTasks(e.p, e, { runId: 'proposal', projectDir: root, skill: { name: 'tdd', description: '' }, opts: { agent: 'claude', auth: 'subscription', runs: 'quick' }, signal: new AbortController().signal })).rejects.toMatchObject({ name: 'TargetInResidueError', skillName: 'tdd' });
+  expect(detections).toBe(0); expect(e.calls).toHaveLength(0); expect(e.cleaned).toEqual(['proposal']);
+});

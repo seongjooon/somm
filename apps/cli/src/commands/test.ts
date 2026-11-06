@@ -33,7 +33,15 @@ export async function run(args: string[], ctx: CliContext): Promise<number> {
     if (!v.yes && !await (ctx.confirm as (q: string, signal?: AbortSignal) => Promise<boolean>)('Continue?', controller.signal)) throw new Error('Run cancelled');
     let task = v.task;
     if (!task) {
-      const choices = await proposeTasks(ctx.platform, { agent: createAgents(ctx.platform)[opts.agent], sandbox: createLiteSandbox(ctx.platform, bins) }, { runId: crypto.randomUUID(), projectDir: resolve(v.project), skill, opts, signal: controller.signal });
+      let choices: string[];
+      try {
+        choices = await proposeTasks(ctx.platform, { agent: createAgents(ctx.platform)[opts.agent], sandbox: createLiteSandbox(ctx.platform, bins) }, { runId: crypto.randomUUID(), projectDir: resolve(v.project), skill, opts, signal: controller.signal });
+      } catch (error) {
+        if (!(error instanceof Error) || error.name !== 'TargetInResidueError') throw error;
+        const location = opts.agent === 'codex' ? 'CODEX_HOME/skills or project skills' : 'project skills';
+        emit(ctx, 'needs to breathe', [`${humanField(skill.name)} is already visible to both arms (${location}). Remove or rename it, then retry.`], { error: 'target-in-residue' });
+        return 1;
+      }
       choices.forEach((choice, i) => ctx.err(`${i + 1}. ${choice}`));
       const select = (ctx as CliContext & { select?: (q: string, signal?: AbortSignal) => Promise<string> }).select;
       if (!select) throw new Error('Task selection requires interactive input');
