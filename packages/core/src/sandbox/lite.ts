@@ -15,12 +15,11 @@ export function createLiteSandbox(p: Platform, bins: Record<string, string | nul
   const runs = `${p.dataDir.replace(/\/$/, '')}/runs`;
   const active = new Map<string, SandboxWarning[]>();
   const gitBin = bins.git || 'git';
-  const configs = new Map<string, string>();
   // nodeProc merges env into process.env, so PATH is inherited.
   async function git(cwd: string, args: string[], env: Record<string, string> = {}) {
     const result = await p.proc.run(gitBin, ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false',
       '-c', 'core.attributesFile=/dev/null', '-c', 'commit.gpgsign=false', '-c', 'core.excludesFile=/dev/null', ...args],
-    { cwd, env: { ...SANDBOX_GIT_ENV, ...env } });
+    { cwd, env: { ...SANDBOX_GIT_ENV, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', ...env } });
     if (result.code !== 0) throw new Error(`Sandbox git ${args[0]} failed`);
     return result.stdout;
   }
@@ -96,7 +95,6 @@ export function createLiteSandbox(p: Platform, bins: Record<string, string | nul
         await git(base, ['add', '-Af', '--', '.',
           ...[...excluded].filter(x => x !== '.git').map(x => `:(glob,exclude)**/${x}/**`)]);
         await git(base, ['commit', '--allow-empty', '-qm', 'baseline']);
-        configs.set(runId, await p.fs.readText(`${base}/.git/config`));
         return { base, deps, warnings };
       } catch (error) {
         if (created) await p.fs.remove(root);
@@ -141,16 +139,19 @@ export function createLiteSandbox(p: Platform, bins: Record<string, string | nul
     },
     async diffStat(armDir) {
       await owned(armDir);
-      await owned(`${armDir}/.git`);
-      // The agent controls the arm, including .git: restore trusted config and drop attribute-driven filters.
-      const config = configs.get(armDir.slice(runs.length + 1).split('/')[0])!;
-      await p.fs.remove(`${armDir}/.git/config`);
-      await p.fs.writeText(`${armDir}/.git/config`, config);
-      await p.fs.remove(`${armDir}/.git/info/attributes`);
-      // Include new files without staging their contents or modifying the baseline.
-      await git(armDir, ['add', '-N', '.']);
-      const numstat = await git(armDir, ['diff', '--no-ext-diff', '--no-textconv', '--numstat', 'HEAD', '--']);
-      const patch = await git(armDir, ['diff', '--no-ext-diff', '--no-textconv', 'HEAD', '--']);
+      const runId = armDir.slice(runs.length + 1).split('/')[0], arm = armDir.slice(runs.length + 2 + runId.length);
+      if (!arm || arm.includes('/') || arm === 'base') throw new Error('Expected sandbox arm');
+      // Never touch the arm's own .git (agent-controlled): use the base git dir with the arm as work tree and a throwaway index.
+      // Accepted limitation: an arm .gitignore can hide its own changes; ignored files are not force-added.
+      const index = `${runs}/${runId}/.index-${arm}`;
+      const g = (args: string[]) => git(armDir, ['--git-dir', `${runs}/${runId}/base/.git`, '--work-tree', armDir, ...args], { GIT_INDEX_FILE: index });
+      let numstat: string, patch: string;
+      try {
+        await g(['read-tree', 'HEAD']);
+        await g(['add', '-A']);
+        numstat = await g(['diff', '--cached', '--no-ext-diff', '--no-textconv', '--numstat', 'HEAD', '--']);
+        patch = await g(['diff', '--cached', '--no-ext-diff', '--no-textconv', 'HEAD', '--']);
+      } finally { await p.fs.remove(index); }
       let files = 0, added = 0, removed = 0;
       for (const line of numstat.trim().split('\n').filter(Boolean)) {
         const [a, r] = line.split('\t'); files++;
@@ -164,7 +165,6 @@ export function createLiteSandbox(p: Platform, bins: Record<string, string | nul
       await owned(root);
       await p.fs.remove(root);
       active.delete(runId);
-      configs.delete(runId);
     },
   };
 }
