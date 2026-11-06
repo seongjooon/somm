@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
+import { createInterface } from 'node:readline/promises';
+import { stdin, stderr } from 'node:process';
 import * as search from './commands/search';
 import * as scan from './commands/scan';
 import * as list from './commands/list';
@@ -25,9 +27,15 @@ if (values.help || !command) {
     process.exitCode = 1;
   } else {
     const { createNodePlatform } = await import('@somm/core/node');
+    const ask = async (question: string) => {
+      if (!stdin.isTTY) return '';
+      const rl = createInterface({ input: stdin, output: stderr });
+      try { return await rl.question(question); } finally { rl.close(); }
+    };
     process.exitCode = await commands[name].run(argv.slice(command.index + 1), {
       platform: await createNodePlatform(), out: console.log, err: console.error,
-      json: values.json === true, confirm: async () => false,
-    });
+      json: values.json === true, confirm: async question => /^(y|yes)$/i.test((await ask(`${question} [y/N] `)).trim()),
+      select: ask,
+    } as Parameters<typeof test.run>[1] & { select: typeof ask });
   }
 }

@@ -1,0 +1,25 @@
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createNodePlatform } from '@somm/core/node';
+import type { CliContext } from '../output';
+const fake = vi.hoisted(() => ({ run: vi.fn(), save: vi.fn() }));
+vi.mock('@somm/core', async importOriginal => ({ ...await importOriginal<typeof import('@somm/core')>(), runAB: fake.run, saveRun: fake.save }));
+import { run } from './test';
+let root: string, ctx: CliContext, lines: string[];
+const previous = process.env.SOMM_DATA_DIR;
+const result = () => ({ tag: '// somm: pairs well', a: [], b: [], contamination: { status: 'clean', residue: [] as string[], common: [] as string[], extras: [] as string[], targetInResidue: false }, warnings: [] as string[], verdict: { line: 'Good', rating: 'recommend' }, grade: 'A', meta: {} });
+beforeEach(async () => {
+ root = await mkdtemp(join(tmpdir(), 'somm-result-')); process.env.SOMM_DATA_DIR = join(root, 'data');
+ const platform = await createNodePlatform(); platform.home = join(root, 'home'); platform.proc = { which: async names => Object.fromEntries(names.map(n => [n, null])), run: async () => { throw new Error('unexpected process'); } };
+ await mkdir(join(root, 'skill')); await writeFile(join(root, 'skill', 'SKILL.md'), '# skill');
+ lines = []; ctx = { platform, json: false, out: l => lines.push(l), err: () => {}, confirm: async () => true }; fake.run.mockReset().mockResolvedValue(result()); fake.save.mockReset();
+});
+afterEach(async () => { if (previous === undefined) delete process.env.SOMM_DATA_DIR; else process.env.SOMM_DATA_DIR = previous; await rm(root, { recursive: true, force: true }); });
+const args = () => [join(root, 'skill'), '--agent', 'codex', '--project', root, '--task', 'work', '--yes'];
+it('prints the result tag first and zero residue', async () => { expect(await run(args(), ctx)).toBe(0); expect(lines[0]).toBe('// somm: pairs well'); expect(lines).toContain('Shared residue: 0'); });
+it('emits a single JSON result including residue', async () => { ctx.json = true; expect(await run(args(), ctx)).toBe(0); expect(lines).toHaveLength(1); expect(JSON.parse(lines[0]).contamination.residue).toEqual([]); });
+it('stops when the target is in residue', async () => { const r = result(); r.tag = '// somm: needs to breathe'; r.contamination.residue = ['skill']; r.warnings = ['target-in-residue']; fake.run.mockResolvedValue(r); expect(await run(args(), ctx)).toBe(1); expect(lines.join('\n')).toContain('skill is already visible to both arms'); });
+it.each(['SIGINT', 'SIGTERM'] as const)('aborts the run on %s', async signal => { let cleaned = false; fake.run.mockImplementation(async (_p, _d, req) => { try { process.emit(signal); expect(req.signal.aborted).toBe(true); throw new Error('aborted'); } finally { cleaned = true; } }); expect(await run(args(), ctx)).toBe(1); expect(cleaned).toBe(true); expect(lines).toContain('Run cancelled'); });
+it('returns 2 for corked results', async () => { const r = result(); r.tag = '// somm: corked'; fake.run.mockResolvedValue(r); expect(await run(args(), ctx)).toBe(2); });
