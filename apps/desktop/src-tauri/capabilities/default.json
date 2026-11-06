@@ -4,6 +4,33 @@
     "main"
   ],
   "permissions": [
-    "core:default"
+    "core:default",
+    "fs:allow-exists",
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file",
+    "fs:allow-read-dir",
+    "fs:allow-mkdir",
+    "fs:allow-remove",
+    "fs:allow-rename",
+    "sql:default",
+    "sql:allow-execute",
+    "dialog:allow-open",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        {
+          "path": "$HOME/.claude"
+        },
+        {
+          "path": "$HOME/.claude/**"
+        },
+        {
+          "path": "$HOME/.agents"
+        },
+        {
+          "path": "$HOME/.agents/**"
+        }
+      ]
+    }
   ]
 }
