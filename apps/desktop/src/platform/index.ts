@@ -36,8 +36,8 @@ async function initialize(): Promise<{ platform: Platform; detected: Record<Agen
     async execute(sql, params) { await database.execute(sql, params); },
   };
   try { await migrate(db); } catch (error) { await database.close(); throw error; }
-  const bins = await tauriProc.which(['claude', 'codex', 'pwd', 'git', 'tar', 'cp', 'docker', 'pnpm', 'npm', 'yarn', 'uv']);
-  const proc = { ...tauriProc, which: async (names: string[]) => Object.fromEntries(names.map(name => [name, bins[name] ?? null])) };
+  await tauriProc.which(['claude', 'codex', 'pwd', 'git', 'tar', 'cp', 'docker', 'pnpm', 'npm', 'yarn', 'uv']);
+  const proc = tauriProc;
   const platform = { fs: tauriFs, proc, db, home, dataDir, env };
   const agents = createAgents(platform);
   const [claude, codex] = await Promise.all([agents.claude.detect(), agents.codex.detect()]);

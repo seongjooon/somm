@@ -2,8 +2,19 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type { Proc, ProcResult } from '@somm/core';
 interface Line { id: string; stream: 'stdout' | 'stderr'; line: string; terminated: boolean }
-export const tauriProc: Proc = {
-  which: names => invoke('resolve_bins', { names }),
+export function createTauriProc(): Proc {
+  const cache = new Map<string, Promise<string | null>>();
+  async function which(names: string[]): Promise<Record<string, string | null>> {
+    const missing = [...new Set(names)].filter(name => !cache.has(name));
+    if (missing.length) {
+      const resolving = invoke<Record<string, string | null>>('resolve_bins', { names: missing });
+      for (const name of missing) cache.set(name, resolving.then(bins => bins[name] ?? null));
+    }
+    try { return Object.fromEntries(await Promise.all(names.map(async name => [name, await cache.get(name)!]))); }
+    catch (error) { for (const name of missing) cache.delete(name); throw error; }
+  }
+  return {
+  which,
   async run(bin, args, opts = {}) {
     if (opts.signal?.aborted) throw new DOMException('Process aborted', 'AbortError');
     const id = crypto.randomUUID();
@@ -37,7 +48,7 @@ export const tauriProc: Proc = {
       opts.signal?.addEventListener('abort', abort, { once: true });
       if (opts.signal?.aborted) throw new DOMException('Process aborted', 'AbortError');
       const name = bin.split('/').pop()!;
-      const resolved = (await this.which([name]))[name];
+      const resolved = (await which([name]))[name];
       const path = bin.startsWith('/') && bin !== resolved ? null : resolved;
       if (!path) throw new Error(`Binary not found: ${name}`);
       await invoke('spawn_agent', { id, binName: name, binPath: path, args, cwd: opts.cwd ?? null, env: opts.env ?? {} });
@@ -54,4 +65,6 @@ export const tauriProc: Proc = {
       for (const stop of unlisten) stop();
     }
   },
-};
+  };
+}
+export const tauriProc = createTauriProc();
