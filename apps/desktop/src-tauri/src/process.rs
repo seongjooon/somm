@@ -2,8 +2,16 @@
 mod tests {
     #[test]
     fn redacts_plain_and_json_escaped_keys() {
-        let keys = vec!["a\"b".to_string()];
+        let keys = super::secret_forms(&["a\"b".to_string()]);
         assert_eq!(super::redact("a\"b and a\\\"b", &keys), "[REDACTED] and [REDACTED]");
+    }
+    #[test]
+    fn masks_encoded_and_split_secrets() {
+        let forms = super::secret_forms(&["secret+/".to_string()]);
+        for value in ["secret%2B%2F", "7365637265742b2f", "c2VjcmV0Ky8=", "c2VjcmV0Ky8"] {
+            assert!(!super::redact(value, &forms).contains(value));
+        }
+        assert!(!super::redact("sec\nret+/", &forms).contains("sec\nret+/"));
     }
     #[test]
     fn validates_binary_name_and_path() {
@@ -43,17 +51,46 @@ pub(crate) fn is_allowed(name: &str, path: &str) -> bool {
 fn allowed_args(name: &str, args: &[String]) -> bool {
     name != "pwd" || args == ["-P"]
 }
-fn redact(text: &str, keys: &[String]) -> String {
-    let mut result = text.to_string();
-    for key in keys {
-        if key.is_empty() { continue; }
-        let encoded: String = key.chars().flat_map(|c| match c {
-            '"' => "\\\"".to_string(), '\\' => "\\\\".to_string(),
-            '\n' => "\\n".to_string(), '\r' => "\\r".to_string(), '\t' => "\\t".to_string(),
+fn secret_forms(keys: &[String]) -> Vec<String> {
+    const B64: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut forms = Vec::new();
+    for key in keys.iter().filter(|k| !k.is_empty()) {
+        let bytes = key.as_bytes();
+        forms.push(key.clone());
+        forms.push(key.chars().flat_map(|c| match c {
+            '"' => "\\\"".to_string(), '\\' => "\\\\".to_string(), '\n' => "\\n".to_string(), '\r' => "\\r".to_string(), '\t' => "\\t".to_string(),
             c if c.is_control() => format!("\\u{:04x}", c as u32), c => c.to_string(),
-        }.chars().collect::<Vec<_>>()).collect();
-        result = result.replace(&encoded, "[REDACTED]");
-        result = result.replace(key, "[REDACTED]");
+        }.chars().collect::<Vec<_>>()).collect());
+        forms.push(bytes.iter().map(|b| format!("%{b:02X}")).collect());
+        forms.push(bytes.iter().map(|b| if b.is_ascii_alphanumeric() || b"-_.~".contains(b) { (*b as char).to_string() } else { format!("%{b:02X}") }).collect());
+        forms.push(bytes.iter().map(|b| format!("{b:02x}")).collect());
+        forms.push(bytes.iter().map(|b| format!("{b:02X}")).collect());
+        for prefix in 0..3 {
+            let data = [vec![0; prefix], bytes.to_vec()].concat();
+            let mut encoded = String::new();
+            for chunk in data.chunks(3) {
+                let n = ((chunk[0] as u32) << 16) | ((chunk.get(1).copied().unwrap_or(0) as u32) << 8) | chunk.get(2).copied().unwrap_or(0) as u32;
+                encoded.push(B64[((n >> 18) & 63) as usize] as char); encoded.push(B64[((n >> 12) & 63) as usize] as char);
+                encoded.push(if chunk.len() > 1 { B64[((n >> 6) & 63) as usize] as char } else { '=' });
+                encoded.push(if chunk.len() > 2 { B64[(n & 63) as usize] as char } else { '=' });
+            }
+            let start = match prefix { 0 => 0, 1 => 2, _ => 3 };
+            let encoded = &encoded[start..];
+            for form in [encoded.to_string(), encoded.trim_end_matches('=').to_string()] {
+                forms.push(form.clone()); forms.push(form.replace('+', "-").replace('/', "_"));
+            }
+        }
+    }
+    forms.retain(|f| !f.is_empty()); forms.sort_by_key(|f| std::cmp::Reverse(f.len())); forms.dedup(); forms
+}
+fn redact(text: &str, forms: &[String]) -> String {
+    let mut result = text.to_string();
+    for form in forms {
+        result = result.replace(form, "[REDACTED]");
+        for (i, _) in form.char_indices().skip(1) {
+            let split = format!("{}\n{}", &form[..i], &form[i..]);
+            result = result.replace(&split, "[REDACTED]\n");
+        }
     }
     result
 }
@@ -112,8 +149,9 @@ pub fn spawn_agent(
     if let Some(dir) = cwd {
         cmd.current_dir(dir);
     }
-    let secrets: Vec<String> = ["ANTHROPIC_API_KEY", "CODEX_API_KEY"].iter()
+    let keys: Vec<String> = ["ANTHROPIC_API_KEY", "CODEX_API_KEY"].iter()
         .filter_map(|name| env.get(*name).and_then(|value| value.clone())).filter(|value| !value.is_empty()).collect();
+    let secrets = secret_forms(&keys);
     for (key, value) in env {
         match value {
             Some(v) => {
@@ -136,6 +174,7 @@ pub fn spawn_agent(
         let secrets = secrets.clone();
         thread::spawn(move || {
             let mut reader = BufReader::new(input);
+            let mut pending: Option<(String, bool)> = None;
             loop {
                 let mut bytes = Vec::new();
                 match reader.read_until(b'\n', &mut bytes) {
@@ -148,17 +187,18 @@ pub fn spawn_agent(
                                 bytes.pop();
                             }
                         }
-                        let _ = app.emit(
-                            "proc://line",
-                            Line {
-                                id: id.clone(),
-                                stream: stream.clone(),
-                                line: redact(&String::from_utf8_lossy(&bytes), &secrets),
-                                terminated,
-                            },
-                        );
+                        let current = String::from_utf8_lossy(&bytes).into_owned();
+                        if let Some((previous, previous_terminated)) = pending.take() {
+                            let joined = redact(&format!("{previous}\n{current}"), &secrets);
+                            let (first, rest) = joined.split_once('\n').unwrap_or((&joined, ""));
+                            let _ = app.emit("proc://line", Line { id: id.clone(), stream: stream.clone(), line: first.into(), terminated: previous_terminated });
+                            pending = Some((rest.into(), terminated));
+                        } else { pending = Some((current, terminated)); }
                     }
                 }
+            }
+            if let Some((line, terminated)) = pending {
+                let _ = app.emit("proc://line", Line { id, stream, line: redact(&line, &secrets), terminated });
             }
         })
     };

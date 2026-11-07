@@ -66,7 +66,7 @@
     {#if preview}<Button variant="secondary" onclick={() => project = 'demo'}>{t('runner.demo')}</Button>{:else}<Button variant="secondary" onclick={chooseProject}>{t('runner.choose')}</Button>{/if}
     <label>{t('runner.agent')} <select bind:value={options.agent}><option value="claude">Claude Code</option><option value="codex">Codex</option></select></label>
     <label>{t('runner.auth')} <select bind:value={options.auth} onchange={(e) => { const mode = e.currentTarget.value as RunOptions['auth']; changeAuth(mode); if (mode !== 'isolated') { keyPresent = false; if (keyInput) keyInput.value = ''; } }}><option value="subscription">{t('runner.subscription')}</option><option value="isolated">{t('runner.isolated')}</option></select></label>
-    {#if options.auth === 'isolated'}<label>API key <input bind:this={keyInput} type="password" autocomplete="off" oninput={(e) => { setApiKey(e.currentTarget.value); keyPresent = !!e.currentTarget.value; }} /></label>
+    {#if options.auth === 'isolated'}<label>API key <input bind:this={keyInput} type="password" autocomplete="off" oninput={(e) => { setApiKey(e.currentTarget.value); keyPresent = !!e.currentTarget.value; }} /></label><p>{t('runner.keyHint')}</p>
       <label>{t('runner.budget')} <input type="number" min="0.01" step="0.01" bind:value={options.budgetUsd} /></label>{/if}
     <label>{t('runner.model')} <input bind:value={model} /></label>
     <label>{t('runner.runs')} <select bind:value={options.runs}><option value="quick">{t('runner.quick')}</option><option value="thorough">{t('runner.thorough')}</option></select></label>

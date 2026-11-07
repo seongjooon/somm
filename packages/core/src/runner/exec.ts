@@ -3,9 +3,18 @@ import type { Platform } from '../platform';
 import { SANDBOX_GIT_ENV } from '../sandbox';
 import type { AgentEvent, RunOptions } from '../types';
 
-// Replaces the API key (raw and JSON-escaped) so it can never reach events, errors or the DB.
+// Best-effort masking of common representations of the API key.
 export function makeScrub(key?: string) {
-  const forms = key ? [key, JSON.stringify(key).slice(1, -1)] : [];
+  const bytes = key ? new TextEncoder().encode(key) : new Uint8Array();
+  const forms = key ? [key, JSON.stringify(key).slice(1, -1), encodeURIComponent(key), Array.from(bytes, b => `%${b.toString(16).toUpperCase().padStart(2, '0')}`).join(''), Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')] : [];
+  if (key) {
+    forms.push(forms.at(-1)!.toUpperCase());
+    for (let prefix = 0; prefix < 3; prefix++) {
+      const encoded = btoa(String.fromCharCode(...new Uint8Array(prefix), ...bytes)).slice([0, 2, 3][prefix]);
+      for (const form of [encoded, encoded.replace(/=+$/, '')]) forms.push(form, form.replace(/\+/g, '-').replace(/\//g, '_'));
+    }
+  }
+  forms.sort((a, b) => b.length - a.length);
   const str = (s: string) => forms.reduce((acc, f) => acc.split(f).join('[REDACTED]'), s);
   const event = (e: AgentEvent): AgentEvent => {
     if (!key) return e;
