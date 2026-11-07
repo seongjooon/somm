@@ -56,6 +56,19 @@ mod tests {
         }
     }
     #[test]
+    fn utf8_line_cap_preserves_multibyte_characters() {
+        let text = format!("{}secret-value{}", "한".repeat(21844), "글".repeat(1000));
+        let mut lines = super::LineChunks::default();
+        let forms = super::secret_forms(&["secret-value".into()]);
+        let mut redactor = super::StreamRedactor::new(forms);
+        let mut result = String::new();
+        for part in text.as_bytes().chunks(127) {
+            for (line, _) in lines.push(&redactor.push(part, false), false) { result.push_str(&line); }
+        }
+        for (line, _) in lines.push(&redactor.push(b"", true), true) { result.push_str(&line); }
+        assert_eq!(result, text.replace("secret-value", "[REDACTED]"));
+    }
+    #[test]
     fn validates_binary_name_and_path() {
         assert!(super::is_allowed("claude", "/x/bin/claude"));
         assert!(!super::is_allowed("claude", "/x/bin/sh"));
@@ -160,6 +173,35 @@ fn redact(text: &str, forms: &[String]) -> String {
     String::from_utf8_lossy(&StreamRedactor::new(forms.to_vec()).push(text.as_bytes(), true)).into_owned()
 }
 #[derive(Default)]
+struct LineChunks { pending: Vec<u8> }
+impl LineChunks {
+    fn push(&mut self, bytes: &[u8], eof: bool) -> Vec<(String, bool)> {
+        self.pending.extend_from_slice(bytes);
+        let mut result = Vec::new();
+        loop {
+            let newline = self.pending.iter().position(|&b| b == b'\n');
+            let (mut end, terminated) = match newline {
+                Some(n) if n < 65536 => (n, true),
+                _ if self.pending.len() >= 65536 => (65536, false),
+                _ if eof && !self.pending.is_empty() => (self.pending.len(), false),
+                _ => break,
+            };
+            if !terminated && end < self.pending.len() {
+                while end > 0 && (self.pending[end] & 0xc0) == 0x80 { end -= 1; }
+            } else if !terminated && !eof {
+                if let Err(err) = std::str::from_utf8(&self.pending[..end]) {
+                    if err.error_len().is_none() { end = err.valid_up_to(); }
+                }
+            }
+            if end == 0 && !terminated { break; }
+            let text = String::from_utf8_lossy(&self.pending[..end]).into_owned();
+            self.pending.drain(..end + usize::from(terminated));
+            result.push((text, terminated));
+        }
+        result
+    }
+}
+#[derive(Default)]
 pub struct Processes(pub Mutex<HashMap<String, Arc<Mutex<Child>>>>);
 #[derive(Clone, serde::Serialize)]
 struct Line {
@@ -240,22 +282,16 @@ pub fn spawn_agent(
         thread::spawn(move || {
             let mut input = input;
             let mut redactor = StreamRedactor::new(secrets);
-            let mut line = Vec::new();
-            let emit = |line: &mut Vec<u8>, terminated| {
-                let _ = app.emit("proc://line", Line { id: id.clone(), stream: stream.clone(), line: String::from_utf8_lossy(line).into_owned(), terminated });
-                line.clear();
-            };
+            let mut lines = LineChunks::default();
             let mut buffer = [0u8; 8192];
             loop {
                 let size = input.read(&mut buffer).unwrap_or(0);
                 let data = redactor.push(&buffer[..size], size == 0);
-                for byte in data {
-                    if byte == b'\n' { emit(&mut line, true); }
-                    else { line.push(byte); if line.len() >= 65536 { emit(&mut line, false); } }
+                for (line, terminated) in lines.push(&data, size == 0) {
+                    let _ = app.emit("proc://line", Line { id: id.clone(), stream: stream.clone(), line, terminated });
                 }
                 if size == 0 { break; }
             }
-            if !line.is_empty() { emit(&mut line, false); }
         })
     };
     let out = reader(Box::new(stdout), "stdout");
