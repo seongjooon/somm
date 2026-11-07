@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import * as fs from '@tauri-apps/plugin-fs';
 import Database from '@tauri-apps/plugin-sql';
-import { migrate, type Db, type Fs, type Platform } from '@somm/core';
+import { createAgents, migrate, type AgentId, type DetectResult, type Db, type Fs, type Platform } from '@somm/core';
 import { tauriProc } from './proc';
 const tauriFs: Fs = {
   readBytes: p => fs.readFile(p),
@@ -28,7 +28,7 @@ const tauriFs: Fs = {
   },
   symlink: (target, link) => invoke('symlink', { target, link }),
 };
-export async function createTauriPlatform(): Promise<Platform> {
+async function initialize(): Promise<{ platform: Platform; detected: Record<AgentId, DetectResult> }> {
   const { home, dataDir, env } = await invoke<{ home: string; dataDir: string; env: Record<string, string> }>('platform_context');
   const database = await Database.load(`sqlite:${dataDir}/somm.db`);
   const db: Db = {
@@ -36,5 +36,14 @@ export async function createTauriPlatform(): Promise<Platform> {
     async execute(sql, params) { await database.execute(sql, params); },
   };
   try { await migrate(db); } catch (error) { await database.close(); throw error; }
-  return { fs: tauriFs, proc: tauriProc, db, home, dataDir, env };
+  const bins = await tauriProc.which(['claude', 'codex', 'pwd', 'git', 'tar', 'cp', 'docker', 'pnpm', 'npm', 'yarn', 'uv']);
+  const proc = { ...tauriProc, which: async (names: string[]) => Object.fromEntries(names.map(name => [name, bins[name] ?? null])) };
+  const platform = { fs: tauriFs, proc, db, home, dataDir, env };
+  const agents = createAgents(platform);
+  const [claude, codex] = await Promise.all([agents.claude.detect(), agents.codex.detect()]);
+  return { platform, detected: { claude, codex } };
 }
+
+let startup: ReturnType<typeof initialize> | undefined;
+export function startDesktop() { return startup ??= initialize(); }
+export async function createTauriPlatform(): Promise<Platform> { return (await startDesktop()).platform; }

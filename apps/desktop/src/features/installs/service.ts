@@ -1,5 +1,5 @@
 import { createAgents, createSampleSource, fetchSkillFiles, hashFiles, installGate, readInstallMarker, readLocalSkill, restoreBackup, scanSkill, type AgentId, type Conflict, type DetectResult, type InstalledSkill, type Platform, type Scope, type SkillFile, type SkillMeta } from '@somm/core';
-import { createTauriPlatform } from '../../platform';
+import { createTauriPlatform, startDesktop } from '../../platform';
 import { updateAvailable } from './helpers';
 import { inspectConflicts } from './conflicts';
 
@@ -21,7 +21,9 @@ export interface Service {
 
 export async function createService(): Promise<Service> {
   if (import.meta.env.DEV && !('__TAURI_INTERNALS__' in window)) return (await import('./fake')).createFakeService();
-  return realService(await createTauriPlatform());
+  const service = realService(await createTauriPlatform());
+  service.detect = async () => (await startDesktop()).detected;
+  return service;
 }
 
 export function realService(p: Platform): Service {
