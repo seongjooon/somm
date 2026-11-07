@@ -32,6 +32,16 @@ export async function restoreBackup(p: Platform, backupId: string, opts: { overw
     if (typeof metadata.originalDir !== 'string' || /[\\\0]/.test(metadata.originalDir) || metadata.originalDir.split('/').some(s => s === '.' || s === '..') ||
         (scope === 'global' ? metadata.originalDir !== global : !metadata.originalDir.startsWith('/') || !metadata.originalDir.endsWith(projectSuffix))) throw new Error('Invalid backup recovery metadata');
   }
+  if (scope === 'project' && !isDisabled) {
+    const project = target.slice(0, -projectSuffix.length) || '/';
+    const configEntry = (await p.fs.readDir(project)).find(entry => entry.name === config);
+    if (configEntry && (configEntry.isSymlink || !configEntry.isDir)) throw new Error('Unsafe project config symlink or non-directory');
+    if (configEntry) {
+      const skillsEntry = (await p.fs.readDir(join(project, config))).find(entry => entry.name === 'skills');
+      if (skillsEntry && (skillsEntry.isSymlink || !skillsEntry.isDir)) throw new Error('Unsafe project skills symlink or non-directory');
+    }
+  }
+  // Global and disabled parents are outside the webview filesystem scope.
   const targetParent = parent(target);
   const targetEntry = await p.fs.exists(targetParent)
     ? (await p.fs.readDir(targetParent)).find(entry => entry.name === name) : undefined;
