@@ -159,3 +159,39 @@ test('checks project directories without accessing paths above the project', asy
     expect(await p.fs.readText(`${item.dir}/SKILL.md`)).toBe('old');
   } finally { await cleanup(); }
 });
+
+test.each(['target removal', 'sidecar removal', 'sidecar restore', 'previous restore'])('reports recovery when %s fails during rollback', async failure => {
+  const { p, cleanup } = await setup();
+  try {
+    const a = createAgents(p).claude;
+    const installed = await a.install(skill, 'global', { mode: 'copy' });
+    const disabled = await a.setEnabled(installed, false);
+    await a.uninstall(disabled);
+    const [backup] = await p.db.select<{ id: string }>('SELECT id FROM backups');
+    const current = await a.install({ ...skill, files: [{ path: 'SKILL.md', contents: 'current' }] }, 'global', { mode: 'copy' });
+    await a.setEnabled(current, false);
+    const original = p.fs;
+    const execute = p.db.execute;
+    p.db.execute = async (sql, params) => { if (params?.[6] === 'restore') throw new Error('restore record failed'); return execute(sql, params); };
+    let failed = false;
+    p.fs = { ...original,
+      async remove(path) {
+        if (!failed && ((failure === 'target removal' && path === disabled.dir) || (failure === 'sidecar removal' && path === `${disabled.dir}.somm-disabled.json`))) { failed = true; throw new Error('injected rollback failure'); }
+        return original.remove(path);
+      },
+      async rename(from, to) {
+        if (!failed && ((failure === 'sidecar restore' && from.endsWith('-previous.json')) || (failure === 'previous restore' && from.endsWith('-previous')))) { failed = true; throw new Error('injected rollback failure'); }
+        return original.rename(from, to);
+      },
+    };
+    let message = '';
+    try { await restoreBackup(p, backup.id, { overwrite: true }); } catch (error) { message = String(error); }
+    expect(failed).toBe(true);
+    expect(message).toMatch(/previous|somm-restore/);
+    if (failure === 'sidecar removal' || failure === 'sidecar restore') expect(await original.readText(`${disabled.dir}/SKILL.md`)).toBe('current');
+    else {
+      const entries = await original.readDir(`${p.dataDir}/disabled/claude/global`);
+      expect(entries.some(entry => entry.name.endsWith('-previous'))).toBe(true);
+    }
+  } finally { await cleanup(); }
+});
