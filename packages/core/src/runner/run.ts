@@ -78,6 +78,7 @@ async function execute(p: Platform, deps: { agent: AgentAdapter; sandbox: Sandbo
   residue = await agent.enumerateSkills(prepared.base);
   if (residue.includes(skill.name)) { warnings.push(...prepared.warnings, 'target-in-residue'); return result(null, []); }
   signal.throwIfAborted();
+  // Recheck login for each run because authentication can expire after startup.
   const status = await withTimeout(agent.detect(req.opts.auth === 'isolated' ? { installationOnly: true } : undefined), timeouts.detect);
   if (status === 'timeout') { warnings.push(...prepared.warnings, 'detect-timeout'); return result(null, []); }
   if (!status.installed || (req.opts.auth === 'subscription' && status.loggedIn === false) || (req.opts.auth === 'isolated' && !req.opts.apiKey?.trim())) { warnings.push(...prepared.warnings, 'auth'); return result(null, []); }

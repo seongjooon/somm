@@ -2,8 +2,9 @@ import { expect, test, vi, beforeEach } from 'vitest';
 const bridge = vi.hoisted(() => ({ listeners: new Map<string, (event: { payload: unknown }) => void>(), invoke: vi.fn(), stop: vi.fn() }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke: bridge.invoke }));
 vi.mock('@tauri-apps/api/event', () => ({ listen: async (name: string, fn: (event: { payload: unknown }) => void) => { bridge.listeners.set(name, fn); return bridge.stop; } }));
-import { tauriProc } from './proc';
-beforeEach(() => { bridge.listeners.clear(); bridge.invoke.mockReset(); bridge.stop.mockClear(); });
+import { createTauriProc } from './proc';
+let tauriProc: ReturnType<typeof createTauriProc>;
+beforeEach(() => { tauriProc = createTauriProc(); bridge.listeners.clear(); bridge.invoke.mockReset(); bridge.stop.mockClear(); });
 test('waits for cancellation cleanup before rejecting', async () => {
   const controller = new AbortController();
   let release!: () => void;
@@ -52,4 +53,17 @@ test('passes sandbox canonicalization through the resolved pwd bridge', async ()
     }
   });
   expect((await tauriProc.run('pwd', ['-P'], { cwd: '/tmp/example' })).stdout).toBe('/private/tmp/example\n');
+});
+
+test('resolves each binary once across runs and caches missing names', async () => {
+  bridge.invoke.mockImplementation(async (command, args) => {
+    if (command === 'resolve_bins') return Object.fromEntries(args.names.map((name: string) => [name, name === 'node' ? '/usr/bin/node' : null]));
+    if (command === 'spawn_agent') bridge.listeners.get('proc://exit')!({ payload: { id: args.id, code: 0 } });
+  });
+  await tauriProc.which(['node']);
+  await tauriProc.run('node', []);
+  await tauriProc.run('node', []);
+  await tauriProc.which(['missing']);
+  await tauriProc.which(['missing']);
+  expect(bridge.invoke.mock.calls.filter(([command]) => command === 'resolve_bins').map(([, args]) => args.names)).toEqual([['node'], ['missing']]);
 });
