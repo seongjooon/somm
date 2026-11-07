@@ -95,6 +95,56 @@
         {
           "path": "$HOME/.agents/skills/**"
         }
+      ],
+      "deny": [
+        {
+          "path": "/**/.env"
+        },
+        {
+          "path": "/**/.env.*"
+        },
+        {
+          "path": "/**/.ssh"
+        },
+        {
+          "path": "/**/.ssh/**"
+        },
+        {
+          "path": "/**/.aws"
+        },
+        {
+          "path": "/**/.aws/**"
+        },
+        {
+          "path": "/**/.gnupg"
+        },
+        {
+          "path": "/**/.gnupg/**"
+        },
+        {
+          "path": "/**/.netrc"
+        },
+        {
+          "path": "/**/.npmrc"
+        },
+        {
+          "path": "/**/.pypirc"
+        },
+        {
+          "path": "/**/.git/config"
+        },
+        {
+          "path": "/**/.git/hooks"
+        },
+        {
+          "path": "/**/.git/hooks/**"
+        },
+        {
+          "path": "/**/.config/gh"
+        },
+        {
+          "path": "/**/.config/gh/**"
+        }
       ]
     },
     {
