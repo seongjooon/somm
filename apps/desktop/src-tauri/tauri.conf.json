@@ -22,6 +22,10 @@
     }
   },
   "bundle": {
-    "active": false
+    "active": true,
+    "resources": {
+      "../../../demos/ts-mini/": "demos/ts-mini/",
+      "../../../demos/py-mini/": "demos/py-mini/"
+    }
   }
 }
