@@ -31,6 +31,31 @@ mod tests {
         assert_eq!(String::from_utf8(out).unwrap(), format!("{}[REDACTED]\n\n\n", "x".repeat(70000)));
     }
     #[test]
+    fn masks_every_base64_alignment() {
+        fn encode(bytes: &[u8]) -> String {
+            let abc = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+            let mut output = String::new();
+            for c in bytes.chunks(3) {
+                let v = ((c[0] as u32) << 16) | ((c.get(1).copied().unwrap_or(0) as u32) << 8) | c.get(2).copied().unwrap_or(0) as u32;
+                output.push(abc[(v >> 18) as usize] as char); output.push(abc[((v >> 12) & 63) as usize] as char);
+                output.push(if c.len() > 1 { abc[((v >> 6) & 63) as usize] as char } else { '=' });
+                output.push(if c.len() > 2 { abc[(v & 63) as usize] as char } else { '=' });
+            } output
+        }
+        for secret in ["12345678", "secret-value", "ÿÿÿÿÿÿÿÿ", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"] {
+            let forms = super::secret_forms(&[secret.into()]);
+            for prefix in 0..3 { for suffix in 0..3 {
+                let bytes = [vec![255; prefix], secret.as_bytes().to_vec(), vec![255; suffix]].concat();
+                let encoded = encode(&bytes);
+                for variant in [encoded.clone(), encoded.trim_end_matches('=').into(), encoded.replace('+', "-").replace('/', "_"), encoded.trim_end_matches('=').replace('+', "-").replace('/', "_")] {
+                    let start = (prefix * 8 + 5) / 6; let end = (prefix + secret.len()) * 8 / 6;
+                    let stable = &variant[start..end];
+                    assert!(!super::redact(&variant, &forms).contains(stable));
+                }
+            } }
+        }
+    }
+    #[test]
     fn validates_binary_name_and_path() {
         assert!(super::is_allowed("claude", "/x/bin/claude"));
         assert!(!super::is_allowed("claude", "/x/bin/sh"));

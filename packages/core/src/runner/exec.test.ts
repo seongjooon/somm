@@ -53,3 +53,17 @@ test('scrubs values structurally without touching property names or markers', ()
   expect(s.event(event)).toEqual({ kind: 'text', text: '[REDACTED]', raw: { REDACTED: '[REDACTED]' } });
   expect(makeScrub('short').str('short')).toBe('short');
 });
+test('masks stable base64 substrings for all byte alignments', () => {
+  for (const secret of ['12345678', 'secret-value', 'ÿÿÿÿÿÿÿÿ', 'a'.repeat(40)]) {
+    const bytes = new TextEncoder().encode(secret);
+    const scrub = makeScrub(secret);
+    for (let prefix = 0; prefix < 3; prefix++) for (let suffix = 0; suffix < 3; suffix++) {
+      const full = btoa(String.fromCharCode(...new Uint8Array(prefix).fill(255), ...bytes, ...new Uint8Array(suffix).fill(255)));
+      const start = Math.ceil(prefix * 8 / 6), end = Math.floor((prefix + bytes.length) * 8 / 6);
+      for (const encoded of [full, full.replace(/=+$/, ''), full.replace(/\+/g, '-').replace(/\//g, '_'), full.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')]) {
+        const stable = encoded.slice(start, end);
+        expect(scrub.str(encoded)).not.toContain(stable);
+      }
+    }
+  }
+});
