@@ -1,11 +1,21 @@
 #[cfg(test)]
 mod tests {
     #[test]
+    fn redacts_plain_and_json_escaped_keys() {
+        let keys = vec!["a\"b".to_string()];
+        assert_eq!(super::redact("a\"b and a\\\"b", &keys), "[REDACTED] and [REDACTED]");
+    }
+    #[test]
     fn validates_binary_name_and_path() {
         assert!(super::is_allowed("claude", "/x/bin/claude"));
         assert!(!super::is_allowed("claude", "/x/bin/sh"));
         assert!(!super::is_allowed("rm", "/bin/rm"));
         assert!(!super::is_allowed("node", "node"));
+        assert!(super::is_allowed("pwd", "/bin/pwd"));
+        assert!(!super::is_allowed("pwd", "/tmp/pwd"));
+        assert!(super::allowed_args("pwd", &["-P".into()]));
+        assert!(!super::allowed_args("pwd", &["-L".into()]));
+        assert!(!super::allowed_args("pwd", &[]));
     }
 }
 
@@ -22,12 +32,30 @@ use std::{
 use tauri::{Emitter, Manager, State};
 const ALLOWED: &[&str] = &[
     "claude", "codex", "git", "tar", "cp", "docker", "node", "npm", "npx", "pnpm", "yarn",
-    "python3", "uv", "cargo", "go",
+    "python3", "uv", "cargo", "go", "pwd",
 ];
 pub(crate) fn is_allowed(name: &str, path: &str) -> bool {
     ALLOWED.contains(&name)
+        && (name != "pwd" || path == "/bin/pwd")
         && Path::new(path).is_absolute()
         && Path::new(path).file_name().and_then(|n| n.to_str()) == Some(name)
+}
+fn allowed_args(name: &str, args: &[String]) -> bool {
+    name != "pwd" || args == ["-P"]
+}
+fn redact(text: &str, keys: &[String]) -> String {
+    let mut result = text.to_string();
+    for key in keys {
+        if key.is_empty() { continue; }
+        let encoded: String = key.chars().flat_map(|c| match c {
+            '"' => "\\\"".to_string(), '\\' => "\\\\".to_string(),
+            '\n' => "\\n".to_string(), '\r' => "\\r".to_string(), '\t' => "\\t".to_string(),
+            c if c.is_control() => format!("\\u{:04x}", c as u32), c => c.to_string(),
+        }.chars().collect::<Vec<_>>()).collect();
+        result = result.replace(&encoded, "[REDACTED]");
+        result = result.replace(key, "[REDACTED]");
+    }
+    result
 }
 #[derive(Default)]
 pub struct Processes(pub Mutex<HashMap<String, Arc<Mutex<Child>>>>);
@@ -67,7 +95,7 @@ pub fn spawn_agent(
     cwd: Option<String>,
     env: HashMap<String, Option<String>>,
 ) -> Result<(), String> {
-    if !environment.permits(&bin_name, &bin_path) {
+    if !environment.permits(&bin_name, &bin_path) || !allowed_args(&bin_name, &args) {
         return Err("Binary is not allowed".into());
     }
     let mut processes = state.0.lock().map_err(|e| e.to_string())?;
@@ -84,6 +112,8 @@ pub fn spawn_agent(
     if let Some(dir) = cwd {
         cmd.current_dir(dir);
     }
+    let secrets: Vec<String> = ["ANTHROPIC_API_KEY", "CODEX_API_KEY"].iter()
+        .filter_map(|name| env.get(*name).and_then(|value| value.clone())).filter(|value| !value.is_empty()).collect();
     for (key, value) in env {
         match value {
             Some(v) => {
@@ -103,6 +133,7 @@ pub fn spawn_agent(
         let app = app.clone();
         let id = id.clone();
         let stream = stream.to_string();
+        let secrets = secrets.clone();
         thread::spawn(move || {
             let mut reader = BufReader::new(input);
             loop {
@@ -122,7 +153,7 @@ pub fn spawn_agent(
                             Line {
                                 id: id.clone(),
                                 stream: stream.clone(),
-                                line: String::from_utf8_lossy(&bytes).into_owned(),
+                                line: redact(&String::from_utf8_lossy(&bytes), &secrets),
                                 terminated,
                             },
                         );
