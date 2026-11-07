@@ -4,18 +4,6 @@ import { SkillExistsError } from './types';
 
 type Backup = { id: string; agent: string; scope: string; name: string; original_dir: string; backup_dir: string; action: string };
 
-async function safeParents(p: Platform, path: string): Promise<void> {
-  let current = '';
-  for (const part of parent(path).split('/').filter(Boolean)) {
-    const dir = current || '/';
-    if (!await p.fs.exists(dir)) break;
-    const entry = (await p.fs.readDir(dir)).find(e => e.name === part);
-    if (!entry) break;
-    if (entry.isSymlink || !entry.isDir) throw new Error('Unsafe symlink or non-directory in backup path');
-    current = join(dir, part);
-  }
-}
-
 export async function restoreBackup(p: Platform, backupId: string, opts: { overwrite?: boolean } = {}): Promise<void> {
   const [row] = await p.db.select<Backup>('SELECT * FROM backups WHERE id = ?', [backupId]);
   if (!row || row.action !== 'backup') throw new Error('Backup not found');
@@ -29,9 +17,7 @@ export async function restoreBackup(p: Platform, backupId: string, opts: { overw
   const disabled = join(p.dataDir, 'disabled', agent, scope, name);
   const projectSuffix = `/${config}/skills/${name}`;
   if (target !== disabled && (scope === 'global' ? target !== global : !target.endsWith(projectSuffix) || target === global)) throw new Error('Invalid backup target');
-  if (!source.startsWith(`${join(p.dataDir, 'backups')}/`) || parent(source) !== join(p.dataDir, 'backups') || source.split('/').some(s => s === '.' || s === '..')) throw new Error('Invalid backup source');
-  await safeParents(p, target);
-  await safeParents(p, source);
+  if (!source.startsWith(`${join(p.dataDir, 'backups')}/`) || parent(source) !== join(p.dataDir, 'backups') || /[\\\0]/.test(source) || source.split('/').some(s => s === '.' || s === '..')) throw new Error('Invalid backup source');
   if (!await p.fs.exists(source)) throw new Error('Backup is missing');
   const sourceEntry = (await p.fs.readDir(parent(source))).find(entry => entry.name === source.split('/').pop());
   if (sourceEntry?.isSymlink) throw new Error('Symlink backup requires a verified target');
@@ -43,10 +29,13 @@ export async function restoreBackup(p: Platform, backupId: string, opts: { overw
     if (!await p.fs.exists(sourceSidecar)) throw new Error('Backup recovery metadata is missing');
     sidecarText = await p.fs.readText(sourceSidecar);
     const metadata = JSON.parse(sidecarText) as { originalDir?: unknown };
-    if (typeof metadata.originalDir !== 'string' || metadata.originalDir.split('/').some(s => s === '.' || s === '..') ||
+    if (typeof metadata.originalDir !== 'string' || /[\\\0]/.test(metadata.originalDir) || metadata.originalDir.split('/').some(s => s === '.' || s === '..') ||
         (scope === 'global' ? metadata.originalDir !== global : !metadata.originalDir.startsWith('/') || !metadata.originalDir.endsWith(projectSuffix))) throw new Error('Invalid backup recovery metadata');
   }
-  const exists = await p.fs.exists(target);
+  const targetParent = parent(target);
+  const targetEntry = await p.fs.exists(targetParent)
+    ? (await p.fs.readDir(targetParent)).find(entry => entry.name === name) : undefined;
+  const exists = !!targetEntry;
   if (exists && !opts.overwrite) throw new SkillExistsError(target);
   const { cp } = await p.proc.which(['cp']);
   if (!cp) throw new Error('cp is required to restore backups');
