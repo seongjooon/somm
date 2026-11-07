@@ -4,6 +4,7 @@ export async function inspectConflicts(p: Platform, items: InstalledSkill[]): Pr
   const unreadable: string[] = [];
   const descriptions = await Promise.all(items.map(async item => {
     try {
+      if (!item.hash) throw new Error('Unreadable skill');
       const files = (await readLocalSkill(item.dir, p)).files;
       return { item, name: item.name, traits: skillTraits(files), text: files.map(f => skillText(f.contents) ?? '').join('\n') };
     } catch { unreadable.push(item.dir); return null; }

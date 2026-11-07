@@ -24,7 +24,7 @@ export async function createService(): Promise<Service> {
   return realService(await createTauriPlatform());
 }
 
-function realService(p: Platform): Service {
+export function realService(p: Platform): Service {
   const agents = createAgents(p);
   async function metadata(id: string) {
     const rows = await p.db.select<{ json: string }>('SELECT json FROM skills_cache WHERE id = ?', [id]);
