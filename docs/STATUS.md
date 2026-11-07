@@ -1,46 +1,56 @@
-# somm STATUS
+# somm status
 
-_Last updated: 2026-11-07 (after Wave 6)_
+_Updated 2026-11-07. Plan: `docs/superpowers/plans/2026-11-06-somm-mvp.md`; spec: `docs/superpowers/specs/2026-11-06-somm-mvp-design.md`._
 
-## Done
-- PRD updated: Auth (Subscription/Isolated) and Runs (Quick/Thorough) options, three verdict lines.
-- Spec confirmed: `docs/superpowers/specs/2026-11-06-somm-mvp-design.md`
-- Plan approved: `docs/superpowers/plans/2026-11-06-somm-mvp.md` (T1–T15 in Waves 0–8, T16–T18 outlined)
-- `AGENTS.md`: monorepo stack, Multi-agent and Tooling rules.
-- **Wave 6 done.** T12 store and detail screens (PR #14), T13 installs screen with install marker and backup restore in core (PR #15). Each had Codex advisor review(s); screens were checked in the Vite web page with dev-only fake data.
-- **CLI smoke done (2026-11-07, `docs/experiments/2026-11-07-cli-smoke.md`):** Codex (luna) and Claude (haiku) Quick runs work end to end after PR #11 (`--model`) and PR #12 (Claude arms: `acceptEdits` + allow/deny lists + outside-directory block). Both arms edit files and run tests; user config hashes unchanged.
-- **T10 CLI `test`/`install`/`remove` merged (PR #9, plus fixes)** and **T11 design system merged (PR #10)**; both done by the previous Codex lead session / this session.
-- **Wave 4 done.** T8 A/B run engine (PR #7), T9 CLI `search`/`scan`/`list` and Node guard (PR #8). `@somm/core` now exports agents, scan, sources, sandbox and runner. 296 tests pass; each task had one Claude advisor review (all APPROVE WITH FIXES, fixes applied).
-- **Wave 3 done.** T6 sources and ranking with binary skill file support (PR #6, changed the `hashFiles` format on purpose, pre-release), T7 Lite sandbox (PR #4), T7b sandbox hardening (PR #5: arms are diffed through the base git dir; link checks use real paths).
-- **Wave 2 done.** T4 agent adapters and T5 static scan merged in PR #3, together with Wave 1 platform fixes. Codex reviews and integrated tests passed (137 TypeScript tests, 6 Rust tests, check and build).
-- **Wave 1 done.** T2 monorepo scaffold and shared contracts (PR #1), T3 Node/Tauri platform implementations (PR #2). Each was reviewed once by `/paseo-advisor` (APPROVE WITH FIXES); fixes were applied before merge. Plan Task 3 now carries follow-up notes for later tasks.
-- **T1 isolation experiments (Wave 0) done.** Results: `docs/experiments/2026-11-06-isolation.md`. Fixtures: `packages/core/fixtures/agent-events/`. Script: `scripts/experiments/isolation.sh`.
+MVP implementation T1–T15 is merged and code-complete; the user's manual Tauri check and real-subscription GUI smoke remain.
 
-## Decisions from T1 (user-approved)
-1. **Claude Subscription:** keep `HOME` and `CLAUDE_CONFIG_DIR` (changing either loses the keychain login). Use `--setting-sources project,local --strict-mcp-config --no-session-persistence`. **Isolated Claude:** no `--bare` (it drops project skills). Use the same flags plus `ANTHROPIC_API_KEY`. Verify in T10.
-2. **Codex Subscription:** `HOME=<tmp>`, original `CODEX_HOME`, `--ephemeral --ignore-user-config`. Accept the shared residue (`$CODEX_HOME/skills`, `$CODEX_HOME/AGENTS.md`).
-   - Supplement: always show the shared residue list (count and names) on the results screen and in `--json`.
-   - If the target skill is already in the residue, stop before any agent call and warn (spec 5.3, plan T8/T10/T14).
-3. **Honeypot:** use option 2 for both agents, and also plant option-1 fake files in Codex's temp `HOME`.
-- Supplement: inject `GIT_AUTHOR_*`/`GIT_COMMITTER_*` = `somm`/`somm@localhost` for all git work in the copy (T7 `SANDBOX_GIT_ENV`, T8 arm env).
-- Supplement: running `claude auth status --json` and `codex login status` in `detect()` is a mandatory pre-check (T4 Step 5). `runAB` calls it first (T8).
-- `npx skills` (N1): on hold. Use only its path table as a reference.
+- Wave 0: T1 isolation experiments (`docs/experiments/2026-11-06-isolation.md`).
+- Wave 1: T2 scaffold (#1), T3 platforms (#2).
+- Wave 2: T4 agents and T5 scanner (#3).
+- Wave 3: T6 sources (#6), T7 Lite sandbox and hardening (#4, #5).
+- Wave 4: T8 run engine (#7), T9 CLI reads (#8).
+- Wave 5: T10 CLI runs (#9, #11, #12), T11 design system (#10); CLI smoke: `docs/experiments/2026-11-07-cli-smoke.md`.
+- Wave 6: T12 store/detail (#14), T13 installs (#15); #13 records smoke results.
+- Wave 7: T14 runner/results (#16).
+- Wave 8: T15 integration and release preparation (#17); GUI smoke remains.
 
-## Next
-1. **Wave 7:** T14 runner and results screens (Codex implementer, Codex advisor review, the lead merges). Prerequisites: non-default `CODEX_HOME` read scope (Tauri capability), API key only in a module variable (`features/runner/session.ts`).
-2. **Wave 8:** T15 integration (app shell, migrate/resolve_bins/detect at start, README, GUI smoke needs approval).
+## Run and verify
 
-## Open items
-- Not verified in Wave 6: real Tauri file fetching, install and restore, Docker detection, keyboard/screen-reader behavior, `scan_cache` against the real DB. Symlink-installed skills cannot be restored from a backup. `listInstalled` can list non-skill folders without `SKILL.md` as unreadable entries. Restore does not check symlinks above the skills dir for global/disabled targets (spec section 10).
-- Smoke not covered: deny-list/outside-directory enforcement in a real run, Thorough and Isolated modes, a real canary hit, SIGINT in a real run, the GUI. The allow-list also blocks useful inline commands (`node -e`); agents work around it.
-- Lite limit: an agent can edit the project's test script and run it via the allowed test command (spec section 10; Docker later).
-- The Codex CLI appends `trust_level = "trusted"` project entries for every arm directory to the real `~/.codex/config.toml` (smoke finding 2). Not written by somm; document or offer a consented cleanup.
-- Not verified in Wave 3/4: real `claude`/`codex` runs through the run engine (fake processes only), Tauri `Proc` signal/env handling, `AbortSignal.any` in the Tauri webview, real tool-input key names (`command`/`cmd`) behind the canary `security ` rule, Lite sandbox wired to the runner (fake sandbox only). Confirm in the T10 smoke.
-- Accepted limits: an arm `.gitignore` can hide its own changes from the diff; test commands run in the arm with host permissions (inherent to Lite; Docker comes later).
-- Core `readTree` has no file size cap (a huge file in a scanned skill can exhaust memory). `lite.test.ts` is over 300 lines.
-- Agent roles: Claude plans/reviews/does hard work, Codex does light work; if Codex hits its limit, continue with Claude (see AGENTS.md Tooling).
-- Not yet verified: real cross-volume T4 move (EXDEV is simulated); Tauri GUI and scoped filesystem runtime. Disabled broken links require the target to be restored before re-enabling.
-- Not verified in Wave 1: Finder-launched app, real agent CLIs through `spawn_agent`, runtime read of `~/.codex/skills`, non-default `CODEX_HOME` read scope (handle before T14).
-- Not verified in T1: both Isolated combos (no API key), whether Codex `--ignore-user-config` drops `config.toml` MCP servers, and side effects of the temp `HOME` on agent shell commands.
-- Before release: spec §13 checklist (Apple Developer account at $99/yr, recheck the OpenAI terms, secure the npm name `somm`).
-- Installing ui-ux-pro-max (T11) and the real-subscription smoke tests (T10, T15) need user approval first.
+```sh
+pnpm install
+pnpm --filter desktop tauri dev
+pnpm --filter desktop dev
+pnpm -r test
+pnpm -r check
+pnpm -r build
+node apps/cli/dist/cli.js --help
+cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
+cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
+```
+
+Run tests with no `SOMM_DATA_DIR` set. The real data directory `~/Library/Application Support/io.github.seongjooon.somm` already exists: an empty DB was created on 2026-11-07 at 10:31; the directory was last modified at 10:51:42. Check its modification time, not its absence, when verifying isolation.
+
+## Next, in order
+
+1. User opens the app with `pnpm --filter desktop tauri dev` and runs a Quick test on the bundled demo. Real-subscription use needs user approval; record results in `docs/experiments/`. The T15 plan calls for Claude and Codex runs, shared CLI/GUI history, screenshots and config checks.
+2. Complete spec §13 release checklist: audit and security review, DMG, macOS signing and notarization (Apple Developer account required; `hdiutil` failed in the agent sandbox), recheck OpenAI and Anthropic terms, README principle, public repository/crawler and real index, MIT license, and secure npm name `somm` before `npm publish`.
+3. Post-MVP outlines: T16 Docker Secure sandbox, T17 share card, T18 crawler/public release (plan T16–T18).
+
+## Known limits and risks
+
+- Lite runs the project's test command with host permissions; a modified test script can launch subprocesses (spec §10; README).
+- Secret masking is best-effort; use a budget-limited throwaway key for Isolated (spec §10; README).
+- Node-side masking is per event and cannot join secrets split across events (spec §10; README).
+- Desktop read scope for non-default `CODEX_HOME` is missing (README; plan T3).
+- Symlink-installed skills cannot be restored from backup (README; `packages/core/src/agents/restore.ts`).
+- Restore does not check symlinks above the skills directory for global/disabled targets (spec §10).
+- `listInstalled` can list non-skill folders as unreadable entries (`packages/core/src/agents/install.ts`).
+- Codex CLI appends trusted project entries to `~/.codex/config.toml` (CLI smoke finding 2).
+- `readTree` has no file size cap (`packages/core/src/sources/fetch.ts`).
+- `packages/core/src/sandbox/lite.test.ts` exceeds 300 lines (AGENTS.md file-size guideline).
+- Results table formats token counts with decimals (`apps/desktop/src/features/results/Page.svelte`).
+- Real smoke has not covered deny-list/outside-directory enforcement, Thorough or Isolated, a real canary hit, or SIGINT (CLI smoke).
+
+## Working agreements
+
+Claude leads and reviews; Codex implements and reviews (AGENTS.md Tooling). One task = one worktree/branch/PR. Use a Codex advisor review before merge; the lead re-verifies on `origin/main` before merging.
