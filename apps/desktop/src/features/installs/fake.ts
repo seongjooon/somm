@@ -16,7 +16,7 @@ export async function createFakeService(): Promise<Service> {
       const result: Record<string, Conflict[]> = Object.fromEntries(all.map(i => [i.dir, []]));
       const claude = all.filter(i => i.agent === 'claude');
       if (claude.length > 1) for (const i of claude) result[i.dir] = detectConflicts({ name: i.name, text: '', traits: skillTraits(files) }, [{ name: 'other', text: '', traits: skillTraits(files) }]);
-      return result;
+      return { conflicts: result, unreadable: [] };
     },
     async update(i) { return i.name === 'frontend-design'; },
     async toggle(i) { items = items.map(x => x === i ? { ...x, enabled: !x.enabled } : x); },
