@@ -32,8 +32,9 @@ export async function runArm(p: Platform, agent: AgentAdapter, sandbox: Sandbox,
   const skills = new Set(await agent.enumerateSkills(a.dir));
   if (a.opts.agent === 'codex') for (const s of await agent.enumerateSkills(a.tmpHome)) skills.add(s);
   const started = Date.now();
+  const allowedBash = await detectTestCommand(p, a.dir).catch(() => null);
   const inv = await invokeAgent(p, agent, { cwd: a.dir, tmpHome: a.tmpHome, prompt: a.task, opts: a.opts, model: a.model, signal: a.signal,
-    scrub: a.scrub, timeoutMs: a.timeouts?.agent ?? AGENT_TIMEOUT_MS, onEvent: e => a.onEvent(a.name, e) });
+    allowedBash: allowedBash ?? undefined, scrub: a.scrub, timeoutMs: a.timeouts?.agent ?? AGENT_TIMEOUT_MS, onEvent: e => a.onEvent(a.name, e) });
   const durationMs = Date.now() - started;
   const ran = await runTests(p, a.dir, a.signal, a.timeouts?.test ?? TEST_TIMEOUT_MS);
   // Somm-planted files (canaries, injected skill) are not part of the agent's work.

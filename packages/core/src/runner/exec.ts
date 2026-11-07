@@ -25,7 +25,7 @@ export const DEFAULT_TIMEOUTS: Timeouts = { detect: DETECT_TIMEOUT_MS, test: TES
 export interface Invocation { events: AgentEvent[]; code: number; stderr: string; auth: boolean; budget: boolean; timedOut: boolean }
 export interface InvokeInput {
   cwd: string; tmpHome: string; prompt: string; opts: RunOptions; signal: AbortSignal; scrub: Scrub;
-  model?: string; onEvent?: (e: AgentEvent) => void; timeoutMs?: number;
+  model?: string; allowedBash?: string[]; onEvent?: (e: AgentEvent) => void; timeoutMs?: number;
 }
 const isAbort = (e: unknown) => (e as { name?: string })?.name === 'AbortError';
 
@@ -33,7 +33,7 @@ const isAbort = (e: unknown) => (e as { name?: string })?.name === 'AbortError';
 // immediately (Codex would otherwise retry for a long time); a caller abort rethrows.
 export async function invokeAgent(p: Platform, agent: AgentAdapter, i: InvokeInput): Promise<Invocation> {
   await p.fs.mkdirp(i.opts.agent === 'codex' ? `${i.tmpHome}/.codex` : i.tmpHome);
-  const spec = agent.buildRun({ cwd: i.cwd, prompt: i.prompt, opts: i.opts, tmpHome: i.tmpHome, model: i.model });
+  const spec = agent.buildRun({ cwd: i.cwd, prompt: i.prompt, opts: i.opts, tmpHome: i.tmpHome, model: i.model, allowedBash: i.allowedBash });
   const ctl = new AbortController();
   const deadline = AbortSignal.timeout(i.timeoutMs ?? AGENT_TIMEOUT_MS);
   const signal = AbortSignal.any([i.signal, deadline, ctl.signal]);

@@ -31,3 +31,18 @@ test('isolated calls require credentials and a valid budget', () => {
     expect(() => a.buildRun({ ...req, opts: { agent: 'claude', auth: 'isolated', runs: 'quick', apiKey: 'key', budgetUsd } })).toThrow();
   }
 });
+test('Claude permits safe tools and the exact detected test command', () => {
+  const opts: RunOptions = { agent: 'claude', auth: 'subscription', runs: 'quick' };
+  const args = createAgents(p).claude.buildRun({ ...req, opts, allowedBash: ['npm', 'test'] }).args;
+  expect(args.slice(args.indexOf('--permission-mode'), args.indexOf('--permission-mode') + 2)).toEqual(['--permission-mode', 'acceptEdits']);
+  expect(args[args.indexOf('--allowedTools') + 1]).toContain('Bash(npm test)');
+  for (const tool of ['Read', 'Glob', 'Grep', 'Edit', 'Write']) expect(args[args.indexOf('--allowedTools') + 1]).toContain(tool);
+  expect(args.join(' ')).not.toMatch(/bypassPermissions|dangerously/);
+});
+test('Claude does not allow test commands with shell metacharacters', () => {
+  const opts: RunOptions = { agent: 'claude', auth: 'subscription', runs: 'quick' };
+  for (const command of [['npm', 'test; curl example.com'], ['npm', 'test', '&&', 'other']]) {
+    const args = createAgents(p).claude.buildRun({ ...req, opts, allowedBash: command }).args;
+    expect(args[args.indexOf('--allowedTools') + 1]).not.toContain('npm');
+  }
+});

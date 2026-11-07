@@ -3,7 +3,7 @@ import type { AgentEvent, AgentId, InstalledSkill, RunOptions, Scope, SkillFile 
 export interface DetectResult { installed: boolean; binPath?: string; version?: string; loggedIn: boolean | 'unknown' }
 // Execute with stdin closed. For isolated Codex, the caller must create env.CODEX_HOME first.
 export interface RunSpec { bin: string; args: string[]; env: Record<string, string | null>; cwd: string }
-export interface RunRequest { cwd: string; prompt: string; opts: RunOptions; tmpHome: string; model?: string }
+export interface RunRequest { cwd: string; prompt: string; opts: RunOptions; tmpHome: string; model?: string; allowedBash?: string[] }
 export interface InstallOptions { mode: 'copy' | 'symlink'; projectDir?: string; overwrite?: boolean; symlinkSource?: string }
 export interface SkillInput { name: string; files: SkillFile[]; source?: string }
 export interface AgentAdapter {
