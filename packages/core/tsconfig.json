@@ -8,6 +8,7 @@
   },
   "exclude": [
     "src/node/**",
-    "src/**/*.test.ts"
+    "src/**/*.test.ts",
+    "src/sandbox/lite-test-helpers.ts"
   ]
 }
