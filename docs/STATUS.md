@@ -1,13 +1,14 @@
 # somm STATUS
 
-_Last updated: 2026-11-07 (after CLI smoke)_
+_Last updated: 2026-11-07 (Wave 6 start)_
 
 ## Done
 - PRD updated: Auth (Subscription/Isolated) and Runs (Quick/Thorough) options, three verdict lines.
 - Spec confirmed: `docs/superpowers/specs/2026-11-06-somm-mvp-design.md`
 - Plan approved: `docs/superpowers/plans/2026-11-06-somm-mvp.md` (T1–T15 in Waves 0–8, T16–T18 outlined)
 - `AGENTS.md`: monorepo stack, Multi-agent and Tooling rules.
-- **T10 CLI `test`/`install`/`remove` merged (PR #9, plus fixes)** and **T11 design system merged (PR #10)**; both done by the previous Codex lead session / this session. T10 Step 3 smoke was run on 2026-11-07 (see `docs/experiments/2026-11-07-cli-smoke.md`): Codex OK; Claude plumbing OK but its arms could not edit files.
+- **CLI smoke done (2026-11-07, `docs/experiments/2026-11-07-cli-smoke.md`):** Codex (luna) and Claude (haiku) Quick runs work end to end after PR #11 (`--model`) and PR #12 (Claude arms: `acceptEdits` + allow/deny lists + outside-directory block). Both arms edit files and run tests; user config hashes unchanged.
+- **T10 CLI `test`/`install`/`remove` merged (PR #9, plus fixes)** and **T11 design system merged (PR #10)**; both done by the previous Codex lead session / this session.
 - **Wave 4 done.** T8 A/B run engine (PR #7), T9 CLI `search`/`scan`/`list` and Node guard (PR #8). `@somm/core` now exports agents, scan, sources, sandbox and runner. 296 tests pass; each task had one Claude advisor review (all APPROVE WITH FIXES, fixes applied).
 - **Wave 3 done.** T6 sources and ranking with binary skill file support (PR #6, changed the `hashFiles` format on purpose, pre-release), T7 Lite sandbox (PR #4), T7b sandbox hardening (PR #5: arms are diffed through the base git dir; link checks use real paths).
 - **Wave 2 done.** T4 agent adapters and T5 static scan merged in PR #3, together with Wave 1 platform fixes. Codex reviews and integrated tests passed (137 TypeScript tests, 6 Rust tests, check and build).
@@ -25,10 +26,12 @@ _Last updated: 2026-11-07 (after CLI smoke)_
 - `npx skills` (N1): on hold. Use only its path table as a reference.
 
 ## Next
-1. **Fix the Claude adapter permission mode** (blocker found by the smoke, `docs/experiments/2026-11-07-cli-smoke.md` finding 1): `--permission-mode acceptEdits` + an allow-list (edit/write/read tools + the detected test command), not `bypassPermissions`. Needs the user's decision on the allow-list approach, then re-run the Claude smoke (uses subscription quota, needs approval).
-2. **Wave 6:** T12 store and detail screens ∥ T13 installs screen. Then T14 runner and results, T15 integration (GUI smoke needs approval).
+1. **Wave 6 (in progress):** T12 store and detail screens ∥ T13 installs screen (Codex implementers, Codex advisor review, the lead merges). Then T14 runner and results, T15 integration (GUI smoke needs approval).
+2. Wave 8 prerequisites carried over: non-default `CODEX_HOME` read scope (before T14), `refresh` flag in UI source fetches.
 
 ## Open items
+- Smoke not covered: deny-list/outside-directory enforcement in a real run, Thorough and Isolated modes, a real canary hit, SIGINT in a real run, the GUI. The allow-list also blocks useful inline commands (`node -e`); agents work around it.
+- Lite limit: an agent can edit the project's test script and run it via the allowed test command (spec section 10; Docker later).
 - The Codex CLI appends `trust_level = "trusted"` project entries for every arm directory to the real `~/.codex/config.toml` (smoke finding 2). Not written by somm; document or offer a consented cleanup.
 - Not verified in Wave 3/4: real `claude`/`codex` runs through the run engine (fake processes only), Tauri `Proc` signal/env handling, `AbortSignal.any` in the Tauri webview, real tool-input key names (`command`/`cmd`) behind the canary `security ` rule, Lite sandbox wired to the runner (fake sandbox only). Confirm in the T10 smoke.
 - Accepted limits: an arm `.gitignore` can hide its own changes from the diff; test commands run in the arm with host permissions (inherent to Lite; Docker comes later).
