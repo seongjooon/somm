@@ -10,6 +10,7 @@
   import { t } from '../../i18n/t';
   import { route, navigate } from '../../lib/route';
   import { groupInstalled } from './helpers';
+  import { createActionLock } from './action-lock';
   import { createService, type Backup, type Prepared, type Service } from './service';
 
   const agentIds: AgentId[] = ['claude', 'codex'];
@@ -28,10 +29,12 @@
   let handledRoute = '';
   const grouped = $derived(groupInstalled(items));
 
+  const lock = createActionLock(value => busy = value);
   async function task(fn: () => Promise<void>) {
-    busy = true; error = '';
-    try { await fn(); } catch (e) { error = e instanceof Error ? e.message : String(e); }
-    finally { busy = false; }
+    await lock.run(async () => {
+      error = '';
+      try { await fn(); } catch (e) { error = e instanceof Error ? e.message : String(e); }
+    });
   }
   async function refresh() {
     items = await service.list(project);
@@ -48,7 +51,7 @@
     if (typeof value === 'string') linkSource = value;
   }
   function confirm(message: string, action: () => Promise<void>) { confirmMessage = message; confirmAction = action; confirmOpen = true; }
-  async function accept() { const action = confirmAction; confirmOpen = false; if (action) await task(action); }
+  async function accept() { if (busy) return; const action = confirmAction; confirmOpen = false; if (action) await task(action); }
   async function requestRestore(backup: Backup, overwrite = false) {
     try { await service.restore(backup.id, overwrite); await refresh(); }
     catch (e) { if (e instanceof SkillExistsError && !overwrite) confirm(t('installs.overwriteConfirm'), () => requestRestore(backup, true)); else throw e; }
@@ -76,7 +79,7 @@
   });
   $effect(() => {
     const id = $route.page === 'installs' ? $route.installSkillId : undefined;
-    if (!loading && service && id && id !== handledRoute) { handledRoute = id; void openInstall(id); }
+    if (!loading && !busy && service && id && id !== handledRoute) { handledRoute = id; void openInstall(id); }
     if (!id) handledRoute = '';
   });
 </script>
@@ -131,13 +134,13 @@
     <div class="space-y-4"><div><h3 class="font-semibold">{prepared.meta.name}</h3><p class="text-sm text-muted">{prepared.meta.description}</p><Badge>{t('installs.grade', { grade: prepared.grade })}</Badge></div>
       <label class="block">{t('installs.agentLabel')}<select class="mt-1 block w-full rounded border border-border bg-raised p-2" bind:value={selectedAgent}>{#each agentIds as agent}<option value={agent} disabled={!detected[agent].installed || !prepared.meta.agents.includes(agent)}>{t(`installs.agent.${agent}`)}{!detected[agent].installed ? ` — ${t('installs.notInstalled')}` : ''}</option>{/each}</select></label>
       <label class="block">{t('installs.scopeLabel')}<select class="mt-1 block w-full rounded border border-border bg-raised p-2" bind:value={scope}><option value="global">{t('installs.scope.global')}</option><option value="project">{t('installs.scope.project')}</option></select></label>
-      {#if scope === 'project'}<Button variant="secondary" onclick={() => task(chooseProject)}>{project ?? t('installs.chooseProject')}</Button>{/if}
+      {#if scope === 'project'}<Button variant="secondary" disabled={busy} onclick={() => task(chooseProject)}>{project ?? t('installs.chooseProject')}</Button>{/if}
       <label class="block">{t('installs.mode')}<select class="mt-1 block w-full rounded border border-border bg-raised p-2" bind:value={mode}><option value="copy">{t('installs.copy')}</option><option value="symlink">{t('installs.symlink')}</option></select></label>
-      {#if mode === 'symlink'}<Button variant="secondary" onclick={() => task(chooseLink)}>{linkSource ?? t('installs.chooseSource')}</Button>{/if}
+      {#if mode === 'symlink'}<Button variant="secondary" disabled={busy} onclick={() => task(chooseLink)}>{linkSource ?? t('installs.chooseSource')}</Button>{/if}
       <p class="text-sm text-muted">{t('installs.backupNotice')}</p>
       {#if prepared.gate === 'blocked'}<p role="alert">{t('installs.blocked')}</p>{:else if prepared.gate === 'after-test'}<label class="flex gap-2"><input type="checkbox" bind:checked={warned} />{t('installs.warning')}</label>{/if}
       <Button disabled={busy || prepared.gate === 'blocked' || (prepared.gate === 'after-test' && !warned) || !detected[selectedAgent].installed || !prepared.meta.agents.includes(selectedAgent) || (scope === 'project' && !project) || (mode === 'symlink' && !linkSource)} onclick={() => task(() => submitInstall())}>{t('installs.install')}</Button>
     </div>
   {/if}
 </Dialog>
-<Dialog bind:open={confirmOpen} title={t('installs.confirmTitle')} closeLabel={t('installs.close')}><p>{confirmMessage}</p><div class="mt-4 flex gap-2"><Button variant="secondary" onclick={() => confirmOpen = false}>{t('installs.cancel')}</Button><Button variant="danger" onclick={accept}>{t('installs.confirm')}</Button></div></Dialog>
+<Dialog bind:open={confirmOpen} title={t('installs.confirmTitle')} closeLabel={t('installs.close')}><p>{confirmMessage}</p><div class="mt-4 flex gap-2"><Button variant="secondary" disabled={busy} onclick={() => confirmOpen = false}>{t('installs.cancel')}</Button><Button variant="danger" disabled={busy} onclick={accept}>{t('installs.confirm')}</Button></div></Dialog>
