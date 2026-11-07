@@ -195,3 +195,38 @@ test.each(['target removal', 'sidecar removal', 'sidecar restore', 'previous res
     }
   } finally { await cleanup(); }
 });
+
+test.each(['copy', 'sidecar move', 'target move', 'sidecar install', 'database'])('preserves target ownership when %s fails', async failure => {
+  const { p, cleanup } = await setup();
+  try {
+    const a = createAgents(p).claude;
+    const original = await a.install(skill, 'global', { mode: 'copy' });
+    const disabled = await a.setEnabled(original, false);
+    await a.uninstall(disabled);
+    const [backup] = await p.db.select<{ id: string }>('SELECT id FROM backups');
+    const sidecar = `${disabled.dir}.somm-disabled.json`;
+    await p.fs.writeText(sidecar, 'old sidecar');
+    const fs = p.fs, proc = p.proc, execute = p.db.execute;
+    let injected = false;
+    p.proc = { ...proc, async run(bin, args, opts) {
+      if (!injected && failure === 'copy' && args[0] === '-R') { injected = true; return { code: 1, stdout: '', stderr: '' }; }
+      return proc.run(bin, args, opts);
+    } };
+    p.fs = { ...fs, async rename(from, to) {
+      if (!injected && failure === 'sidecar move' && from === sidecar) {
+        injected = true; await fs.mkdirp(disabled.dir); await fs.writeText(`${disabled.dir}/concurrent`, 'keep'); throw new Error('injected');
+      }
+      if (!injected && failure === 'target move' && to === disabled.dir) { injected = true; throw new Error('injected'); }
+      if (!injected && failure === 'sidecar install' && to === sidecar && from.endsWith('.json') && !from.endsWith('-previous.json')) { injected = true; throw new Error('injected'); }
+      return fs.rename(from, to);
+    } };
+    p.db.execute = async (sql, args) => { if (!injected && failure === 'database' && args?.[6] === 'restore') { injected = true; throw new Error('injected'); } return execute(sql, args); };
+    await expect(restoreBackup(p, backup.id)).rejects.toThrow();
+    expect(injected).toBe(true);
+    if (failure === 'sidecar move') expect(await fs.readText(`${disabled.dir}/concurrent`)).toBe('keep');
+    else expect(await fs.exists(disabled.dir)).toBe(false);
+    expect(await fs.readText(sidecar)).toBe('old sidecar');
+    const names = (await fs.readDir(`${p.dataDir}/disabled/claude/global`)).map(entry => entry.name);
+    expect(names.filter(name => name.startsWith('.somm-restore-'))).toEqual([]);
+  } finally { await cleanup(); }
+});

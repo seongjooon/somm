@@ -55,6 +55,7 @@ export async function restoreBackup(p: Platform, backupId: string, opts: { overw
   let moved = false;
   let sidecarMoved = false;
   let sidecarInstalled = false;
+  let targetInstalled = false;
   let preserve = false;
   try {
     if ((await p.proc.run(cp, ['-R', '-P', source, staging])).code !== 0) throw new Error('Backup copy failed');
@@ -63,13 +64,14 @@ export async function restoreBackup(p: Platform, backupId: string, opts: { overw
     try {
       if (isDisabled && await p.fs.exists(sidecar)) { await p.fs.rename(sidecar, `${previous}.json`); sidecarMoved = true; }
       await p.fs.rename(staging, target);
+      targetInstalled = true;
       if (isDisabled) { await p.fs.rename(`${staging}.json`, sidecar); sidecarInstalled = true; }
       await p.db.execute('INSERT INTO backups (id, agent, scope, name, original_dir, backup_dir, action, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         [crypto.randomUUID(), agent, scope, name, target, source, 'restore', new Date().toISOString()]);
     } catch (error) {
       const failures: unknown[] = [];
       const attempt = async (action: () => Promise<void>) => { try { await action(); } catch (failure) { failures.push(failure); } };
-      await attempt(async () => { if (await p.fs.exists(target)) await p.fs.remove(target); });
+      if (targetInstalled) await attempt(async () => { if (await p.fs.exists(target)) await p.fs.remove(target); });
       if (sidecarInstalled) await attempt(() => p.fs.remove(sidecar));
       if (sidecarMoved) await attempt(async () => { await p.fs.rename(`${previous}.json`, sidecar); sidecarMoved = false; });
       if (moved) await attempt(async () => { await p.fs.rename(previous, target); moved = false; });
