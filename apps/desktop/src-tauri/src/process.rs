@@ -2,8 +2,8 @@
 mod tests {
     #[test]
     fn redacts_plain_and_json_escaped_keys() {
-        let keys = super::secret_forms(&["a\"b".to_string()]);
-        assert_eq!(super::redact("a\"b and a\\\"b", &keys), "[REDACTED] and [REDACTED]");
+        let keys = super::secret_forms(&["abcdefgh\"b".to_string()]);
+        assert_eq!(super::redact("abcdefgh\"b and abcdefgh\\\"b", &keys), "[REDACTED] and [REDACTED]");
     }
     #[test]
     fn masks_encoded_and_split_secrets() {
@@ -11,7 +11,24 @@ mod tests {
         for value in ["secret%2B%2F", "7365637265742b2f", "c2VjcmV0Ky8=", "c2VjcmV0Ky8"] {
             assert!(!super::redact(value, &forms).contains(value));
         }
-        assert!(!super::redact("sec\nret+/", &forms).contains("sec\nret+/"));
+
+    }
+    #[test]
+    fn streaming_masks_chunks_and_flushes_at_eof() {
+        let mut stream = super::StreamRedactor::new(super::secret_forms(&["abcdefghijk".into()]));
+        let mut output = Vec::new();
+        for chunk in ["before abc", "def", "ghi", "jk after"] { output.extend(stream.push(chunk.as_bytes(), false)); }
+        output.extend(stream.push(b"", true));
+        assert_eq!(String::from_utf8(output).unwrap(), "before [REDACTED] after");
+    }
+    #[test]
+    fn masks_three_lines_and_long_unchanged_output() {
+        let mut r = super::StreamRedactor::new(super::secret_forms(&["abcdefghijk".into()]));
+        let text = format!("{}abc\ndef\nghi\njk", "x".repeat(70000));
+        let mut out = Vec::new();
+        for part in text.as_bytes().chunks(17) { out.extend(r.push(part, false)); }
+        out.extend(r.push(b"", true));
+        assert_eq!(String::from_utf8(out).unwrap(), format!("{}[REDACTED]\n\n\n", "x".repeat(70000)));
     }
     #[test]
     fn validates_binary_name_and_path() {
@@ -29,7 +46,7 @@ mod tests {
 
 use std::{
     collections::HashMap,
-    io::{BufRead, BufReader},
+    io::Read,
     os::unix::process::CommandExt,
     path::Path,
     process::{Child, Command, Stdio},
@@ -54,7 +71,7 @@ fn allowed_args(name: &str, args: &[String]) -> bool {
 fn secret_forms(keys: &[String]) -> Vec<String> {
     const B64: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut forms = Vec::new();
-    for key in keys.iter().filter(|k| !k.is_empty()) {
+    for key in keys.iter().filter(|k| k.chars().count() >= 8) {
         let bytes = key.as_bytes();
         forms.push(key.clone());
         forms.push(key.chars().flat_map(|c| match c {
@@ -65,8 +82,8 @@ fn secret_forms(keys: &[String]) -> Vec<String> {
         forms.push(bytes.iter().map(|b| if b.is_ascii_alphanumeric() || b"-_.~".contains(b) { (*b as char).to_string() } else { format!("%{b:02X}") }).collect());
         forms.push(bytes.iter().map(|b| format!("{b:02x}")).collect());
         forms.push(bytes.iter().map(|b| format!("{b:02X}")).collect());
-        for prefix in 0..3 {
-            let data = [vec![0; prefix], bytes.to_vec()].concat();
+        for prefix in 0..3 { for suffix in 0..3 {
+            let data = [vec![0; prefix], bytes.to_vec(), vec![0; suffix]].concat();
             let mut encoded = String::new();
             for chunk in data.chunks(3) {
                 let n = ((chunk[0] as u32) << 16) | ((chunk.get(1).copied().unwrap_or(0) as u32) << 8) | chunk.get(2).copied().unwrap_or(0) as u32;
@@ -74,25 +91,48 @@ fn secret_forms(keys: &[String]) -> Vec<String> {
                 encoded.push(if chunk.len() > 1 { B64[((n >> 6) & 63) as usize] as char } else { '=' });
                 encoded.push(if chunk.len() > 2 { B64[(n & 63) as usize] as char } else { '=' });
             }
-            let start = match prefix { 0 => 0, 1 => 2, _ => 3 };
-            let encoded = &encoded[start..];
-            for form in [encoded.to_string(), encoded.trim_end_matches('=').to_string()] {
+            let start = (prefix * 8 + 5) / 6;
+            let end = ((prefix + bytes.len()) * 8 / 6).min(encoded.len());
+            let stable = encoded[start..end].to_string();
+            forms.push(stable.clone()); forms.push(stable.replace('+', "-").replace('/', "_"));
+            if prefix == 0 && suffix == 0 { for form in [encoded.to_string(), encoded.trim_end_matches('=').to_string()] {
                 forms.push(form.clone()); forms.push(form.replace('+', "-").replace('/', "_"));
-            }
-        }
+            } }
+        } }
     }
     forms.retain(|f| !f.is_empty()); forms.sort_by_key(|f| std::cmp::Reverse(f.len())); forms.dedup(); forms
 }
-fn redact(text: &str, forms: &[String]) -> String {
-    let mut result = text.to_string();
-    for form in forms {
-        result = result.replace(form, "[REDACTED]");
-        for (i, _) in form.char_indices().skip(1) {
-            let split = format!("{}\n{}", &form[..i], &form[i..]);
-            result = result.replace(&split, "[REDACTED]\n");
-        }
+struct StreamRedactor { needles: Vec<Vec<u8>>, pending: Vec<u8>, hold: usize }
+impl StreamRedactor {
+    fn new(forms: Vec<String>) -> Self {
+        let hold = forms.iter().map(|v| v.len()).max().unwrap_or(1).saturating_mul(2).saturating_sub(1);
+        Self { needles: forms.into_iter().map(String::into_bytes).collect(), pending: Vec::new(), hold }
     }
-    result
+    fn push(&mut self, bytes: &[u8], eof: bool) -> Vec<u8> {
+        self.pending.extend_from_slice(bytes);
+        let mut out = Vec::new();
+        let mut i = 0;
+        while i < self.pending.len() && (eof || self.pending.len() - i > self.hold) {
+            let found = self.needles.iter().find_map(|needle| {
+                let (mut pos, mut matched, mut breaks) = (i, 0, 0);
+                while pos < self.pending.len() && matched < needle.len() {
+                    if self.pending[pos] == needle[matched] { matched += 1; }
+                    else if self.pending[pos] == b'\n' && matched > 0 { breaks += 1; }
+                    else { break; }
+                    pos += 1;
+                }
+                (matched == needle.len()).then_some((pos, breaks))
+            });
+            if let Some((end, breaks)) = found {
+                out.extend_from_slice(b"[REDACTED]"); out.extend(std::iter::repeat(b'\n').take(breaks)); i = end;
+            } else { out.push(self.pending[i]); i += 1; }
+        }
+        self.pending.drain(..i); out
+    }
+}
+#[cfg(test)]
+fn redact(text: &str, forms: &[String]) -> String {
+    String::from_utf8_lossy(&StreamRedactor::new(forms.to_vec()).push(text.as_bytes(), true)).into_owned()
 }
 #[derive(Default)]
 pub struct Processes(pub Mutex<HashMap<String, Arc<Mutex<Child>>>>);
@@ -173,33 +213,24 @@ pub fn spawn_agent(
         let stream = stream.to_string();
         let secrets = secrets.clone();
         thread::spawn(move || {
-            let mut reader = BufReader::new(input);
-            let mut pending: Option<(String, bool)> = None;
+            let mut input = input;
+            let mut redactor = StreamRedactor::new(secrets);
+            let mut line = Vec::new();
+            let emit = |line: &mut Vec<u8>, terminated| {
+                let _ = app.emit("proc://line", Line { id: id.clone(), stream: stream.clone(), line: String::from_utf8_lossy(line).into_owned(), terminated });
+                line.clear();
+            };
+            let mut buffer = [0u8; 8192];
             loop {
-                let mut bytes = Vec::new();
-                match reader.read_until(b'\n', &mut bytes) {
-                    Ok(0) | Err(_) => break,
-                    Ok(_) => {
-                        let terminated = bytes.last() == Some(&b'\n');
-                        if terminated {
-                            bytes.pop();
-                            if bytes.last() == Some(&b'\r') {
-                                bytes.pop();
-                            }
-                        }
-                        let current = String::from_utf8_lossy(&bytes).into_owned();
-                        if let Some((previous, previous_terminated)) = pending.take() {
-                            let joined = redact(&format!("{previous}\n{current}"), &secrets);
-                            let (first, rest) = joined.split_once('\n').unwrap_or((&joined, ""));
-                            let _ = app.emit("proc://line", Line { id: id.clone(), stream: stream.clone(), line: first.into(), terminated: previous_terminated });
-                            pending = Some((rest.into(), terminated));
-                        } else { pending = Some((current, terminated)); }
-                    }
+                let size = input.read(&mut buffer).unwrap_or(0);
+                let data = redactor.push(&buffer[..size], size == 0);
+                for byte in data {
+                    if byte == b'\n' { emit(&mut line, true); }
+                    else { line.push(byte); if line.len() >= 65536 { emit(&mut line, false); } }
                 }
+                if size == 0 { break; }
             }
-            if let Some((line, terminated)) = pending {
-                let _ = app.emit("proc://line", Line { id, stream, line: redact(&line, &secrets), terminated });
-            }
+            if !line.is_empty() { emit(&mut line, false); }
         })
     };
     let out = reader(Box::new(stdout), "stdout");

@@ -3,25 +3,34 @@ import type { Platform } from '../platform';
 import { SANDBOX_GIT_ENV } from '../sandbox';
 import type { AgentEvent, RunOptions } from '../types';
 
-// Best-effort masking of common representations of the API key.
+export function mapStrings(value: unknown, transform: (value: string) => string): unknown {
+  return typeof value === 'string' ? transform(value) : Array.isArray(value) ? value.map(v => mapStrings(v, transform)) : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([k, v]) => [k, mapStrings(v, transform)])) : value;
+}
+
+// Mask common forms in string values without modifying object keys or replacement markers.
 export function makeScrub(key?: string) {
-  const bytes = key ? new TextEncoder().encode(key) : new Uint8Array();
-  const forms = key ? [key, JSON.stringify(key).slice(1, -1), encodeURIComponent(key), Array.from(bytes, b => `%${b.toString(16).toUpperCase().padStart(2, '0')}`).join(''), Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')] : [];
-  if (key) {
+  const bytes = key && [...key].length >= 8 ? new TextEncoder().encode(key) : new Uint8Array();
+  const forms: string[] = bytes.length ? [key!, JSON.stringify(key).slice(1, -1), encodeURIComponent(key!), Array.from(bytes, b => `%${b.toString(16).toUpperCase().padStart(2, '0')}`).join(''), Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')] : [];
+  if (bytes.length) {
     forms.push(forms.at(-1)!.toUpperCase());
-    for (let prefix = 0; prefix < 3; prefix++) {
-      const encoded = btoa(String.fromCharCode(...new Uint8Array(prefix), ...bytes)).slice([0, 2, 3][prefix]);
-      for (const form of [encoded, encoded.replace(/=+$/, '')]) forms.push(form, form.replace(/\+/g, '-').replace(/\//g, '_'));
+    for (let prefix = 0; prefix < 3; prefix++) for (let suffix = 0; suffix < 3; suffix++) {
+      const encoded = btoa(String.fromCharCode(...new Uint8Array(prefix), ...bytes, ...new Uint8Array(suffix)));
+      const start = Math.ceil(prefix * 8 / 6), end = Math.floor((prefix + bytes.length) * 8 / 6);
+      const middle = encoded.slice(start, end);
+      forms.push(middle, middle.replace(/\+/g, '-').replace(/\//g, '_'));
+      if (!prefix && !suffix) for (const f of [encoded, encoded.replace(/=+$/, '')]) forms.push(f, f.replace(/\+/g, '-').replace(/\//g, '_'));
     }
   }
-  forms.sort((a, b) => b.length - a.length);
-  const str = (s: string) => forms.reduce((acc, f) => acc.split(f).join('[REDACTED]'), s);
-  const event = (e: AgentEvent): AgentEvent => {
-    if (!key) return e;
-    const json = JSON.stringify(e);
-    return forms.some(f => json.includes(f)) ? JSON.parse(str(json)) : e;
+  const needles = [...new Set(forms.filter(Boolean))].sort((a, b) => b.length - a.length);
+  const str = (s: string) => {
+    let out = '';
+    for (let i = 0; i < s.length;) {
+      const found = needles.find(f => s.startsWith(f, i));
+      if (found) { out += '[REDACTED]'; i += found.length; } else { out += s[i++]; }
+    }
+    return out;
   };
-  return { str, event };
+  return { str, event: (e: AgentEvent): AgentEvent => mapStrings(e, str) as AgentEvent };
 }
 export type Scrub = ReturnType<typeof makeScrub>;
 

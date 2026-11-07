@@ -3,7 +3,7 @@ import type { Platform } from '../platform';
 import { SANDBOX_GIT_ENV, type Sandbox } from '../sandbox';
 import type { AgentEvent, ArmMetrics, Canary, RunOptions } from '../types';
 import { canaryHits } from './canary';
-import { invokeAgent, TEST_TIMEOUT_MS, AGENT_TIMEOUT_MS, type Scrub } from './exec';
+import { invokeAgent, mapStrings, TEST_TIMEOUT_MS, AGENT_TIMEOUT_MS, type Scrub } from './exec';
 import { detectTestCommand, parseTestOutput } from './tests';
 
 export interface ArmInput {
@@ -41,7 +41,7 @@ export async function runArm(p: Platform, agent: AgentAdapter, sandbox: Sandbox,
     }
     return json;
   };
-  const redactCanaries = (event: AgentEvent): AgentEvent => JSON.parse(redactTokens(JSON.stringify(event))) as AgentEvent;
+  const redactCanaries = (event: AgentEvent): AgentEvent => mapStrings(event, redactTokens) as AgentEvent;
   const inv = await invokeAgent(p, agent, { cwd: a.dir, tmpHome: a.tmpHome, prompt: a.task, opts: a.opts, model: a.model, signal: a.signal,
     allowedBash: allowedBash ?? undefined, scrub: a.scrub, timeoutMs: a.timeouts?.agent ?? AGENT_TIMEOUT_MS, onEvent: e => {
       if (!notified && canaryHits([e], a.canaries).length) { notified = true; a.onCanaryHit?.(a.name); }
