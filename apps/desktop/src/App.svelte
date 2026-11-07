@@ -7,6 +7,7 @@
   import Runner from './features/runner/Page.svelte';
   import Results from './features/results/Page.svelte';
   import Installs from './features/installs/Page.svelte';
+  import { cleanupNotices, dismissCleanupNotice } from './features/runner/notifications';
   const pages = { store: Store, detail: Detail, runner: Runner, results: Results, installs: Installs };
   const links: Route[] = [{ page: 'store' }, { page: 'detail', skillId: '' },
     { page: 'runner', skillId: '' }, { page: 'results', runId: '' }, { page: 'installs' }];
@@ -31,4 +32,5 @@
     <option value="dark">{t("theme.dark")}</option><option value="light">{t("theme.light")}</option>
   </select></label>
 </nav>
+<div aria-live="assertive">{#each $cleanupNotices as notice (notice.id)}<div role="alert"><span>{notice.message}</span> <button aria-label={t('runner.dismissCleanup')} onclick={() => dismissCleanupNotice(notice.id)}>{t('runner.dismissCleanup')}</button></div>{/each}</div>
 <main><Page /></main>
