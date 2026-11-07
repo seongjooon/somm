@@ -75,3 +75,16 @@ test('restores disabled skill recovery metadata', async () => {
     expect((await a.setEnabled(restored!, true)).dir).toBe(item.dir);
   } finally { await cleanup(); }
 });
+
+test('rejects a backup whose symlink points outside the allowed skill roots', async () => {
+  const { p, cleanup } = await setup();
+  try {
+    const a = createAgents(p).claude;
+    const item = await a.install(skill, 'global', { mode: 'copy' });
+    await a.uninstall(item);
+    const [row] = await p.db.select<{ id: string; backup_dir: string }>('SELECT * FROM backups');
+    await p.fs.remove(row.backup_dir);
+    await symlink(p.home, row.backup_dir);
+    await expect(restoreBackup(p, row.id)).rejects.toThrow(/symlink/i);
+  } finally { await cleanup(); }
+});
