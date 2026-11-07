@@ -38,7 +38,7 @@ test('restores a backup, refuses collisions, and backs up overwrites', async () 
   } finally { await cleanup(); }
 });
 
-test('rejects unsafe paths, symlink ancestors, and missing backups', async () => {
+test('rejects unsafe paths and missing backups', async () => {
   const { p, cleanup } = await setup();
   try {
     const item = await createAgents(p).codex.install(skill, 'global', { mode: 'copy' });
@@ -48,13 +48,6 @@ test('rejects unsafe paths, symlink ancestors, and missing backups', async () =>
       await p.db.execute('UPDATE backups SET original_dir = ? WHERE id = ?', [path, row.id]);
       await expect(restoreBackup(p, row.id)).rejects.toThrow();
     }
-    const external = `${p.home}/external`;
-    await p.fs.mkdirp(external);
-    const project = `${p.home}/project`;
-    await p.fs.mkdirp(project);
-    await symlink(external, `${project}/.agents`);
-    await p.db.execute('UPDATE backups SET original_dir = ? WHERE id = ?', [`${project}/.agents/skills/sample`, row.id]);
-    await expect(restoreBackup(p, row.id)).rejects.toThrow();
     await p.db.execute('UPDATE backups SET original_dir = ?, backup_dir = ? WHERE id = ?', [row.original_dir, `${p.dataDir}/backups/missing`, row.id]);
     await expect(restoreBackup(p, row.id)).rejects.toThrow(/backup/i);
   } finally { await cleanup(); }
@@ -86,5 +79,47 @@ test('rejects a backup whose symlink points outside the allowed skill roots', as
     await p.fs.remove(row.backup_dir);
     await symlink(p.home, row.backup_dir);
     await expect(restoreBackup(p, row.id)).rejects.toThrow(/symlink/i);
+  } finally { await cleanup(); }
+});
+
+
+test('refuses an existing symlink unless overwrite is confirmed', async () => {
+  const { p, cleanup } = await setup();
+  try {
+    const a = createAgents(p).claude;
+    const item = await a.install(skill, 'global', { mode: 'copy' });
+    await a.uninstall(item);
+    const [backup] = await p.db.select<{ id: string }>('SELECT id FROM backups');
+    const outside = `${p.home}/external`;
+    await p.fs.mkdirp(outside);
+    await symlink(outside, item.dir);
+    await expect(restoreBackup(p, backup.id)).rejects.toBeInstanceOf(SkillExistsError);
+    await restoreBackup(p, backup.id, { overwrite: true });
+    expect(await p.fs.readText(`${item.dir}/SKILL.md`)).toBe('old');
+  } finally { await cleanup(); }
+});
+
+test('restores into a missing skills directory without inspecting its parents', async () => {
+  const { p, cleanup } = await setup();
+  try {
+    const a = createAgents(p).claude;
+    const item = await a.install(skill, 'global', { mode: 'copy' });
+    await a.uninstall(item);
+    const [backup] = await p.db.select<{ id: string }>('SELECT id FROM backups');
+    const skills = `${p.home}/.claude/skills`;
+    const backupRoot = `${p.dataDir}/backups`;
+    await p.fs.remove(skills);
+    const actual = p.fs;
+    const check = (path: string) => {
+      if (!(path === skills || path.startsWith(`${skills}/`) || path === backupRoot || path.startsWith(`${backupRoot}/`))) {
+        throw new Error(`Out-of-scope filesystem access: ${path}`);
+      }
+    };
+    p.fs = { ...actual,
+      async exists(path) { check(path); return actual.exists(path); },
+      async readDir(path) { check(path); return actual.readDir(path); },
+    };
+    await restoreBackup(p, backup.id);
+    expect(await p.fs.readText(`${item.dir}/SKILL.md`)).toBe('old');
   } finally { await cleanup(); }
 });
