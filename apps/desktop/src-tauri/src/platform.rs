@@ -38,8 +38,30 @@ pub fn symlink(app: tauri::AppHandle, target: String, link: String) -> Result<()
     scoped_symlink(
         std::path::Path::new(&target),
         std::path::Path::new(&link),
-        |p| app.fs_scope().is_allowed(p),
+        |p| !sensitive_path(p) && !resolved_sensitive_path(p) && app.fs_scope().is_allowed(p),
     )
+}
+
+fn resolved_sensitive_path(path: &std::path::Path) -> bool {
+    std::fs::canonicalize(path)
+        .or_else(|_| -> std::io::Result<std::path::PathBuf> {
+            let parent = path.parent().ok_or_else(|| std::io::Error::from(std::io::ErrorKind::NotFound))?;
+            Ok(std::fs::canonicalize(parent)?.join(path.file_name().unwrap_or_default()))
+        })
+        .map(|resolved| sensitive_path(&resolved))
+        .unwrap_or(true)
+}
+
+// Keep this in sync with the global fs:scope deny entries.
+fn sensitive_path(path: &std::path::Path) -> bool {
+    let parts: Vec<_> = path.components().map(|part| part.as_os_str()).collect();
+    parts.iter().enumerate().any(|(i, part)| {
+        let name = part.to_string_lossy();
+        name == ".env" || name.starts_with(".env.")
+            || [".ssh", ".aws", ".gnupg", ".netrc", ".npmrc", ".pypirc"].contains(&name.as_ref())
+            || (name == ".git" && parts.get(i + 1).is_some_and(|p| *p == "config" || *p == "hooks"))
+            || (name == ".config" && parts.get(i + 1).is_some_and(|p| *p == "gh"))
+    })
 }
 
 fn scoped_symlink(
@@ -94,13 +116,42 @@ fn scoped_readlink(
 #[tauri::command]
 pub fn readlink(app: tauri::AppHandle, path: String) -> Result<String, String> {
     scoped_readlink(std::path::Path::new(&path), |p| {
-        app.fs_scope().is_allowed(p)
+        !sensitive_path(p) && !resolved_sensitive_path(p) && app.fs_scope().is_allowed(p)
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::{scoped_readlink, scoped_symlink};
+    #[test]
+    fn configured_scope_allows_cache_and_denies_sensitive_paths() {
+        let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        let capability: serde_json::Value = serde_json::from_str(include_str!("../capabilities/default.json")).unwrap();
+        let deny = capability["permissions"].as_array().unwrap().iter()
+            .find(|entry| entry["identifier"] == "fs:scope").unwrap()["deny"].as_array().unwrap()
+            .iter().map(|entry| std::path::PathBuf::from(entry["path"].as_str().unwrap())).collect();
+        let scope = tauri::fs::Scope::new(&tauri::test::mock_app(), &tauri::utils::config::FsScope::Scope {
+            allow: vec!["/tmp/somm-scope/**".into()], deny,
+            require_literal_leading_dot: config["plugins"]["fs"]["requireLiteralLeadingDot"].as_bool(),
+        }).unwrap();
+        for path in ["cache/.git/.somm-ready", "cache/.somm-ready", "project/README.md"] {
+            assert!(scope.is_allowed(format!("/tmp/somm-scope/{path}")), "{path}");
+        }
+        for path in [".env", ".env.example", ".ssh/id", ".aws/config", ".gnupg/key", ".netrc", ".npmrc", ".pypirc", ".git/config", ".git/hooks/pre-commit", ".config/gh/hosts.yml"] {
+            assert!(!scope.is_allowed(format!("/tmp/somm-scope/project/{path}")), "{path}");
+        }
+        assert!(!scope.is_allowed("/tmp/outside/README.md"));
+    }
+    #[test]
+    fn sensitive_paths_are_denied_without_blocking_cache_markers() {
+        for path in [".env", ".env.example", ".ssh/id", ".aws/config", ".gnupg/key", ".netrc", ".npmrc", ".pypirc", ".git/config", ".git/hooks/pre-commit", ".config/gh/hosts.yml"] {
+            assert!(super::sensitive_path(std::path::Path::new(&format!("/tmp/project/{path}"))), "{path}");
+        }
+        for path in ["cache/repo/.git/.somm-ready", "cache/repo/.somm-ready", "project/README.md"] {
+            assert!(!super::sensitive_path(std::path::Path::new(&format!("/tmp/{path}"))), "{path}");
+        }
+    }
+
     #[test]
     fn preserves_direct_targets_and_checks_link_immediate_and_final_scopes() {
         let root = std::env::temp_dir().join(format!(
