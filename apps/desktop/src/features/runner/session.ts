@@ -5,3 +5,8 @@ export function clearApiKey(): void { apiKey = undefined; }
 export function changeAuth(mode: 'subscription' | 'isolated'): void {
   if (mode !== 'isolated') clearApiKey();
 }
+
+export function resetKey(input?: { value: string }): void {
+  clearApiKey();
+  if (input) input.value = '';
+}

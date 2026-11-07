@@ -6,7 +6,7 @@
   import { t } from '../../i18n/t';
   import Button from '../../ui/Button.svelte';
   import Card from '../../ui/Card.svelte';
-  import { changeAuth, clearApiKey, setApiKey } from './session';
+  import { changeAuth, resetKey, setApiKey } from './session';
   import type { Service, Skill } from './service';
   import { staticDenial } from './guards';
   import { runnerError } from './errors';
@@ -23,6 +23,11 @@
   const preview = import.meta.env.DEV && !isTauri();
   let denial = $derived(skill ? staticDenial(skill) : undefined);
   let estimate = $derived(estimateUsage(options, true, []));
+  function clearSession() { resetKey(keyInput); keyPresent = false; }
+  $effect(() => {
+    window.addEventListener('beforeunload', clearSession);
+    return () => { window.removeEventListener('beforeunload', clearSession); clearSession(); };
+  });
   $effect(() => {
     const id = $route.page === 'runner' ? $route.skillId : '';
     let active = true; mounted = true;
@@ -32,7 +37,7 @@
       else s = await (await import('./service')).createService();
       const loaded = await s.load(id); if (active) { service = s; skill = loaded; }
     } catch { if (active) error = t('runner.loadError'); } })();
-    return () => { active = false; mounted = false; controller?.abort(); clearApiKey(); };
+    return () => { active = false; mounted = false; controller?.abort(); clearSession(); };
   });
   async function chooseProject() { try { const selected = await open({ directory: true, recursive: true }); if (typeof selected === 'string') project = selected; } catch { error = t('runner.actionError'); } }
   function valid() { return !!skill && !denial && !!project && (options.auth !== 'isolated' || (keyPresent && !!options.budgetUsd && options.budgetUsd > 0)); }
@@ -41,17 +46,17 @@
     busy = true; error = ''; controller = new AbortController();
     try { choices = await service.propose({ skill, project, options, model, signal: controller.signal }); }
     catch (e) { if (!notifyCleanupError(e) && mounted) error = runnerError(e, !!controller?.signal.aborted); }
-    finally { busy = false; }
+    finally { busy = false; clearSession(); }
   }
   async function start() {
     if (!service || !skill || !valid() || !task.trim()) return;
     busy = true; error = ''; events = []; phase = ''; canaryAlert = false; controller = new AbortController();
     try {
       const outcome = await service.run({ skill, project, options, model, task: task.trim(), signal: controller.signal }, (arm, event) => { phase = arm; events = [...events, { arm, event }]; }, () => { canaryAlert = true; });
-      clearApiKey(); keyPresent = false; if (mounted) navigate({ page: 'results', runId: outcome.id });
+      clearSession(); if (mounted) navigate({ page: 'results', runId: outcome.id });
       else if (outcome.cleanupFailed) notifyCleanupResult(outcome.recoveryPath);
     } catch (e) { if (!notifyCleanupError(e) && mounted) error = runnerError(e, !!controller?.signal.aborted); }
-    finally { busy = false; clearApiKey(); keyPresent = false; if (keyInput) keyInput.value = ''; }
+    finally { busy = false; clearSession(); }
   }
 </script>
 <section class="runner">
@@ -78,7 +83,7 @@
     {#if estimate.warnThorough}<p role="alert">{t('runner.warning')}</p>{/if}
     <Button disabled={!valid() || !task.trim()} onclick={start}>{t('runner.start')}</Button>
   </fieldset></Card>
-  <Card><h2>{t('runner.progress')}</h2><p>{t('results.baseline')} {phase.startsWith('a-') ? '▶' : '○'} / {t('results.withSkill')} {phase.startsWith('b-') ? '▶' : '○'}</p>{#if busy}<Button variant="secondary" onclick={() => controller?.abort()}>{t('runner.cancel')}</Button>{/if}<div aria-live="polite" class="log">{#each events as entry}<p><strong>{entry.arm}</strong> {entry.event.text ?? entry.event.tool?.name ?? entry.event.kind}</p>{/each}</div></Card></div></div>
+  <Card><h2>{t('runner.progress')}</h2><p>{t('results.baseline')} {phase.startsWith('a-') ? '▶' : '○'} / {t('results.withSkill')} {phase.startsWith('b-') ? '▶' : '○'}</p>{#if busy}<Button variant="secondary" onclick={() => { controller?.abort(); clearSession(); }}>{t('runner.cancel')}</Button>{/if}<div aria-live="polite" class="log">{#each events as entry}<p><strong>{entry.arm}</strong> {entry.event.text ?? entry.event.tool?.name ?? entry.event.kind}</p>{/each}</div></Card></div></div>
   {/if}
 </section>
 <style>
