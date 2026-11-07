@@ -13,6 +13,11 @@ export function buildRun(p: Platform, id: AgentId, bin: string, req: RunRequest)
   let args: string[];
   if (id === 'claude') {
     args = ['-p', '--output-format', 'stream-json', '--verbose', '--setting-sources', 'project,local', '--strict-mcp-config', '--no-session-persistence'];
+    // Exact Bash rules: https://code.claude.com/docs/en/permissions
+    const allowed = ['Read', 'Glob', 'Grep', 'Edit', 'Write', 'Bash(git status)', 'Bash(git diff)', 'Bash(ls)'];
+    if (req.allowedBash?.length && req.allowedBash.every(part => /^[\w./-]+$/.test(part))) allowed.push(`Bash(${req.allowedBash.join(' ')})`);
+    args.push('--permission-mode', 'acceptEdits', '--allowedTools', allowed.join(','), '--disallowedTools',
+      ['Bash(curl *)', 'Bash(wget *)', 'Bash(rm -rf *)', 'Bash(ssh *)', 'Bash(scp *)', 'Bash(*~/.ssh*)', 'Bash(*.env*)'].join(','));
     env.ANTHROPIC_API_KEY = opts.auth === 'isolated' ? opts.apiKey! : null;
     if (opts.auth === 'isolated') args.push('--max-budget-usd', String(opts.budgetUsd));
   } else {

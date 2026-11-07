@@ -35,3 +35,15 @@ test('codex inventory merges skills from the temp HOME', async () => {
     opts: { agent: 'codex', auth: 'subscription', runs: 'quick' }, scrub: makeScrub(), canaries: [], cleanupPaths: [], onEvent: () => {} });
   expect(out.metrics.inventory.skills).toEqual(['fromhome', 'own']);
 });
+test('passes the detected test command to the agent', async () => {
+  const e = await makeEnv({ script: async () => ({ lines: [], code: 0 }) }); root = e.root;
+  const dir = `${root}/arm`;
+  await nodeFs.mkdirp(dir);
+  await nodeFs.writeText(`${dir}/package.json`, JSON.stringify({ scripts: { test: 'vitest' } }));
+  let command: string[] | undefined;
+  const build = e.agent.buildRun;
+  e.agent.buildRun = request => { command = request.allowedBash; return build(request); };
+  await runArm(e.p, e.agent, e.sandbox, { name: 'a-0', dir, tmpHome: `${root}/home`, task: 't', signal: new AbortController().signal,
+    opts: { agent: 'claude', auth: 'subscription', runs: 'quick' }, scrub: makeScrub(), canaries: [], cleanupPaths: [], onEvent: () => {} });
+  expect(command).toEqual(['npm', 'test']);
+});
