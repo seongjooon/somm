@@ -47,3 +47,9 @@ test('masks encoded secret forms', () => {
   const scrub = makeScrub('secret+/');
   for (const value of ['secret%2B%2F', '7365637265742b2f', 'c2VjcmV0Ky8=', 'c2VjcmV0Ky8', 'c2VjcmV0Ky8'.replace('+', '-').replace('/', '_')]) expect(scrub.str(value)).not.toContain(value);
 });
+test('scrubs values structurally without touching property names or markers', () => {
+  const s = makeScrub('REDACTED');
+  const event = { kind: 'text', text: 'REDACTED', raw: { REDACTED: '[REDACTED]' } } as unknown as import('../types').AgentEvent;
+  expect(s.event(event)).toEqual({ kind: 'text', text: '[REDACTED]', raw: { REDACTED: '[[REDACTED]]' } });
+  expect(makeScrub('short').str('short')).toBe('short');
+});
