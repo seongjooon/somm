@@ -7,7 +7,7 @@
   import Card from '../../ui/Card.svelte';
   import SommTag from '../../ui/SommTag.svelte';
   import type { RunHistoryEntry } from './service';
-  import { runDescription } from './display';
+  import { formatPercentage, formatValue, runDescription } from './display';
   let result: RunResult | undefined = $state(), report: ScanReport | null = $state(null), error = $state(false), side: 'a' | 'b' = $state('a');
   let loading = $state(false);
   let history: RunHistoryEntry[] = $state([]), historyLoading = $state(false), historyError = $state(false);
@@ -32,7 +32,6 @@
     } catch { if (active) error = true; } finally { if (active) loading = false; } })(); }
     return () => { active = false; };
   });
-  function value(n: number, deviation?: number) { return `${n.toFixed(1)}${deviation === undefined ? '' : ` ± ${deviation.toFixed(1)}`}`; }
 </script>
 <section class="results"><h1>{$translate('results.title')}</h1>
 {#if error}<p role="alert">{$translate('results.error')}</p><Button variant="secondary" onclick={() => navigate({ page: 'results', runId: '' })}>{$translate('results.history')}</Button>
@@ -49,7 +48,7 @@
   {#if result.warnings.includes('auth')}<p role="alert">{$translate('results.authWarning')}</p>{/if}
   {#if result.warnings.includes('cleanup-failed')}<p role="alert">{$translate('results.cleanupFailed')}{#if result.cleanupRecoveryPath} {$translate('results.recoveryPath')}: {result.cleanupRecoveryPath}{/if}</p>{/if}
   <div class="stack"><Card><h2>{$translate('results.comparison')}</h2><p>{runDescription(result)}</p>{#if result.meta.runs === 'thorough'}<p>{$translate('results.thorough')}</p>{/if}
-  {#if rows.length}<div class="table"><table><thead><tr><th>{$translate('results.metric')}</th><th>{$translate('results.baseline')}</th><th>{$translate('results.withSkill')}</th><th>Δ</th></tr></thead><tbody>{#each rows as row}<tr><th>{$translate('results.metric.' + row.metric)}</th><td>{value(row.a, a?.stdev?.[row.metric])}</td><td>{value(row.b, b?.stdev?.[row.metric])}</td><td>{row.deltaPct === null ? '—' : `${row.deltaPct.toFixed(1)}%`}</td></tr>{/each}</tbody></table></div>{:else}<p>{$translate('results.noMetrics')}</p>{/if}</Card>
+  {#if rows.length}<div class="table"><table><thead><tr><th>{$translate('results.metric')}</th><th>{$translate('results.baseline')}</th><th>{$translate('results.withSkill')}</th><th>Δ</th></tr></thead><tbody>{#each rows as row}<tr><th>{$translate('results.metric.' + row.metric)}</th><td>{formatValue(row.a, result.meta.runs === 'thorough', a?.stdev?.[row.metric])}</td><td>{formatValue(row.b, result.meta.runs === 'thorough', b?.stdev?.[row.metric])}</td><td>{formatPercentage(row.deltaPct)}</td></tr>{/each}</tbody></table></div>{:else}<p>{$translate('results.noMetrics')}</p>{/if}</Card>
   <Card><h2>{$translate('results.contamination')}</h2><p>{result.contamination.status === 'clean' ? $translate('results.clean', { count: result.contamination.common.length }) : $translate('results.contaminated')}</p><p>{$translate('results.common')}: {result.contamination.common.join(', ') || '—'}</p><p>{$translate('results.extras')}: {result.contamination.extras.join(', ') || '—'}</p><p>{$translate('results.residue', { count: result.contamination.residue.length })}: {result.contamination.residue.join(', ') || '—'}</p></Card>
   <Card><h2>{$translate('results.diff')}</h2><div role="group" aria-label={$translate('results.diff')}><Button variant={side === 'a' ? 'primary' : 'secondary'} onclick={() => side = 'a'}>{$translate('results.baseline')}</Button> <Button variant={side === 'b' ? 'primary' : 'secondary'} onclick={() => side = 'b'}>{$translate('results.withSkill')}</Button></div>{#each result[side] as arm, i}<h3>{i + 1}</h3><pre>{arm.diff.patch || '—'}</pre>{/each}</Card>
   <Card><h2>{$translate('results.security')}</h2><p>{$translate('results.grade', { grade: result.grade })} · {$translate('results.eventBased')}</p><h3>{$translate('results.static')}</h3>{#if report}{#each report.findings as finding}<p>{finding.file}:{finding.line} · {finding.message}</p>{:else}<p>{$translate('results.noFindings')}</p>{/each}{:else}<p>{$translate('results.scanUnavailable')}</p>{/if}<h3>{$translate('results.events')}</h3>{#each [...result.a, ...result.b] as arm}{#each arm.canaryHits as hit}<p>{hit}</p>{/each}{/each}<p>{result.warnings.join(', ') || '—'}</p></Card>
