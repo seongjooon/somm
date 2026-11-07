@@ -3,7 +3,7 @@
   import { createSampleSource, fetchSkillFiles, hashFiles, installGate, scanSkill, skillText, skillTraits, type Grade, type ScanReport, type SkillFile, type SkillMeta, type SkillTraits } from '@somm/core';
   import { createTauriPlatform } from '../../platform';
   import { navigate, route } from '../../lib/route';
-  import { t } from '../../i18n/t';
+  import { t, translate } from '../../i18n/t';
   import Button from '../../ui/Button.svelte';
   import Card from '../../ui/Card.svelte';
   import Badge from '../../ui/Badge.svelte';
@@ -70,23 +70,23 @@
   function retry() { const current = $route; if (current.page === 'detail') void load(current.skillId); }
 </script>
 <section class="detail">
-  <Button variant="ghost" onclick={() => navigate({ page: 'store' })}>← {t('detail.back')}</Button>
-  {#if loading}<p><Spinner label={t('detail.loading')} /> {t('detail.loading')}</p>
-  {:else if error}<p role="alert">{t('detail.error')}</p><Button variant="secondary" onclick={retry}>{t('detail.retry')}</Button>
-  {:else if !skill}<p>{t('detail.empty')}</p>
+  <Button variant="ghost" onclick={() => navigate({ page: 'store' })}>← {$translate('detail.back')}</Button>
+  {#if loading}<p><Spinner label={$translate('detail.loading')} /> {$translate('detail.loading')}</p>
+  {:else if error}<p role="alert">{$translate('detail.error')}</p><Button variant="secondary" onclick={retry}>{$translate('detail.retry')}</Button>
+  {:else if !skill}<p>{$translate('detail.empty')}</p>
   {:else if report && traits}
-    {#if demo}<p class="notice">{t('detail.demo')}</p>{/if}
-    <header><div><div class="badges"><Badge>{skill.source}</Badge>{#each skill.agents as agent}<Badge>{agent}</Badge>{/each}</div><h1>{skill.name}</h1><p>{skill.description}</p></div><GradeBadge {grade} label={t('detail.gradeLabel', { grade })} /></header>
-    <div class="actions"><Button disabled={!testAllowed(traits, dockerAvailable)} onclick={() => navigate({ page: 'runner', skillId: skill!.id })}>{t('detail.test')}</Button>
-      {#if gate === 'direct'}<Button variant="secondary" onclick={() => navigate({ page: 'installs', installSkillId: skill!.id })}>{t('detail.install')}</Button>
-      {:else if gate === 'after-test'}<Button variant="secondary" disabled={!testAllowed(traits, dockerAvailable)} onclick={() => navigate({ page: 'runner', skillId: skill!.id })}>{t('detail.testFirst')}</Button>
-      {:else}<Button variant="secondary" disabled>{t('detail.blocked')}</Button>{/if}
-      {#if !testAllowed(traits, dockerAvailable)}<span>{t('detail.staticOnly')}</span>{/if}
+    {#if demo}<p class="notice">{$translate('detail.demo')}</p>{/if}
+    <header><div><div class="badges"><Badge>{skill.source}</Badge>{#each skill.agents as agent}<Badge>{agent}</Badge>{/each}</div><h1>{skill.name}</h1><p>{skill.description}</p></div><GradeBadge {grade} label={$translate('detail.gradeLabel', { grade })} /></header>
+    <div class="actions"><Button disabled={!testAllowed(traits, dockerAvailable)} onclick={() => navigate({ page: 'runner', skillId: skill!.id })}>{$translate('detail.test')}</Button>
+      {#if gate === 'direct'}<Button variant="secondary" onclick={() => navigate({ page: 'installs', installSkillId: skill!.id })}>{$translate('detail.install')}</Button>
+      {:else if gate === 'after-test'}<Button variant="secondary" disabled={!testAllowed(traits, dockerAvailable)} onclick={() => navigate({ page: 'runner', skillId: skill!.id })}>{$translate('detail.testFirst')}</Button>
+      {:else}<Button variant="secondary" disabled>{$translate('detail.blocked')}</Button>{/if}
+      {#if !testAllowed(traits, dockerAvailable)}<span>{$translate('detail.staticOnly')}</span>{/if}
     </div>
-    <div class="columns"><div class="stack"><Card><h2>{t('detail.about')}</h2><p>{skill.description}</p>{#if readme}<p class="readme">{readme}</p>{/if}</Card>
-      <Card><h2>{t('detail.scan')}</h2><p>{t('detail.staticGrade', { grade: report.grade })}</p>{#if report.findings.length}<ul>{#each report.findings as finding}<li><strong>{finding.file}:{finding.line}</strong><br />{finding.message}</li>{/each}</ul>{:else}<p>{t('detail.noFindings')}</p>{/if}</Card></div>
-      <div class="stack"><Card><h2>{t('detail.files')}</h2>{#if files.length}<ul class="files">{#each files as file}<li>{file.path}</li>{/each}</ul>{:else}<p>{t('detail.noFiles')}</p>{/if}</Card>
-      <Card><h2>{t('detail.traits')}</h2><ul><li>{t('detail.scripts')}: {t(traits.hasScripts ? 'detail.yes' : 'detail.no')}</li><li>{t('detail.hooks')}: {t(traits.hasHooks ? 'detail.yes' : 'detail.no')}</li><li>{t('detail.mcp')}: {t(traits.hasMcp ? 'detail.yes' : 'detail.no')}</li><li>{t('detail.commands')}: {traits.commands.join(', ') || '—'}</li></ul></Card></div></div>
+    <div class="columns"><div class="stack"><Card><h2>{$translate('detail.about')}</h2><p>{skill.description}</p>{#if readme}<p class="readme">{readme}</p>{/if}</Card>
+      <Card><h2>{$translate('detail.scan')}</h2><p>{$translate('detail.staticGrade', { grade: report.grade })}</p>{#if report.findings.length}<ul>{#each report.findings as finding}<li><strong>{finding.file}:{finding.line}</strong><br />{finding.message}</li>{/each}</ul>{:else}<p>{$translate('detail.noFindings')}</p>{/if}</Card></div>
+      <div class="stack"><Card><h2>{$translate('detail.files')}</h2>{#if files.length}<ul class="files">{#each files as file}<li>{file.path}</li>{/each}</ul>{:else}<p>{$translate('detail.noFiles')}</p>{/if}</Card>
+      <Card><h2>{$translate('detail.traits')}</h2><ul><li>{$translate('detail.scripts')}: {$translate(traits.hasScripts ? 'detail.yes' : 'detail.no')}</li><li>{$translate('detail.hooks')}: {$translate(traits.hasHooks ? 'detail.yes' : 'detail.no')}</li><li>{$translate('detail.mcp')}: {$translate(traits.hasMcp ? 'detail.yes' : 'detail.no')}</li><li>{$translate('detail.commands')}: {traits.commands.join(', ') || '—'}</li></ul></Card></div></div>
   {/if}
 </section>
 <style>

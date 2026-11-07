@@ -1,6 +1,6 @@
 <script lang="ts">
   import { route, navigate, type Route } from './lib/route';
-  import { t, setLocale } from './i18n/t';
+  import { t, translate, setLocale } from './i18n/t';
   import { isTauri } from '@tauri-apps/api/core';
   import { onMount } from 'svelte';
   import { startDesktop } from './platform';
@@ -30,17 +30,15 @@
   function changeLocale(event: Event) { locale = (event.currentTarget as HTMLSelectElement).value as 'en' | 'ko'; setLocale(locale); }
   const Page = $derived(pages[$route.page]);
 </script>
-{#key locale}
 <nav aria-label="Main">
   {#each links as link}
     <button aria-current={$route.page === link.page ? 'page' : undefined}
-      onclick={() => navigate(link)}>{t('nav.' + link.page)}</button>
+      onclick={() => navigate(link)}>{$translate('nav.' + link.page)}</button>
   {/each}
-  <label>{t('language.label')} <select value={locale} onchange={changeLocale}><option value="en">English</option><option value="ko">한국어</option></select></label>
-  <label>{t("theme.label")} <select value={theme} onchange={changeTheme}>
-    <option value="dark">{t("theme.dark")}</option><option value="light">{t("theme.light")}</option>
+  <label>{$translate('language.label')} <select value={locale} onchange={changeLocale}><option value="en">English</option><option value="ko">한국어</option></select></label>
+  <label>{$translate("theme.label")} <select value={theme} onchange={changeTheme}>
+    <option value="dark">{$translate("theme.dark")}</option><option value="light">{$translate("theme.light")}</option>
   </select></label>
 </nav>
-<div aria-live="assertive">{#each $cleanupNotices as notice (notice.id)}<div role="alert"><span>{notice.message}</span> <button aria-label={t('runner.dismissCleanup')} onclick={() => dismissCleanupNotice(notice.id)}>{t('runner.dismissCleanup')}</button></div>{/each}</div>
-<main>{#if status === 'starting'}<p role="status">{t('startup.loading')}</p>{:else if status === 'error'}<p role="alert">{t('startup.error')}</p>{:else}<Page />{/if}</main>
-{/key}
+<div aria-live="assertive">{#each $cleanupNotices as notice (notice.id)}<div role="alert"><span>{notice.message}</span> <button aria-label={$translate('runner.dismissCleanup')} onclick={() => dismissCleanupNotice(notice.id)}>{$translate('runner.dismissCleanup')}</button></div>{/each}</div>
+<main>{#if status === 'starting'}<p role="status">{$translate('startup.loading')}</p>{:else if status === 'error'}<p role="alert">{$translate('startup.error')}</p>{:else}<Page />{/if}</main>

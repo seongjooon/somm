@@ -3,7 +3,7 @@
   import { open } from '@tauri-apps/plugin-dialog';
   import { estimateUsage, type AgentEvent, type RunOptions } from '@somm/core';
   import { route, navigate } from '../../lib/route';
-  import { t } from '../../i18n/t';
+  import { t, translate } from '../../i18n/t';
   import Button from '../../ui/Button.svelte';
   import Card from '../../ui/Card.svelte';
   import { changeAuth, resetKey, setApiKey, validKey } from './session';
@@ -68,30 +68,30 @@
   }
 </script>
 <section class="runner">
-  <h1>{t('runner.title')}</h1>
+  <h1>{$translate('runner.title')}</h1>
   {#if error}<p role="alert">{error}</p>{/if}
-  {#if canaryAlert}<p role="alert">{t('runner.canary')}</p>{/if}
-  {#if !skill}<p>{t('runner.selectSkill')}</p>{:else}
-  {#if preview}<p>{t('runner.preview')}</p>{/if}
-  <div class="columns"><div><Card><h2>{skill.meta.name}</h2><p>{skill.meta.description}</p><h3>{t('runner.files')}</h3><ul>{#each skill.files as file}<li>{file.path}</li>{/each}</ul></Card></div>
+  {#if canaryAlert}<p role="alert">{$translate('runner.canary')}</p>{/if}
+  {#if !skill}<p>{$translate('runner.selectSkill')}</p>{:else}
+  {#if preview}<p>{$translate('runner.preview')}</p>{/if}
+  <div class="columns"><div><Card><h2>{skill.meta.name}</h2><p>{skill.meta.description}</p><h3>{$translate('runner.files')}</h3><ul>{#each skill.files as file}<li>{file.path}</li>{/each}</ul></Card></div>
   <div class="stack"><Card><fieldset disabled={busy}>
-    <p>{t('runner.project')}: {project || '—'}</p>
-    <Button variant="secondary" onclick={chooseDemo}>{t('runner.demo')}</Button>{#if !preview}<Button variant="secondary" onclick={chooseProject}>{t('runner.choose')}</Button>{/if}
-    <label>{t('runner.agent')} <select bind:value={options.agent}><option value="claude">Claude Code</option><option value="codex">Codex</option></select></label>
-    <label>{t('runner.auth')} <select bind:value={options.auth} onchange={(e) => { const mode = e.currentTarget.value as RunOptions['auth']; changeAuth(mode); if (mode !== 'isolated') { keyPresent = false; if (keyInput) keyInput.value = ''; } }}><option value="subscription">{t('runner.subscription')}</option><option value="isolated">{t('runner.isolated')}</option></select></label>
-    {#if options.auth === 'isolated'}<label>API key <input bind:this={keyInput} type="password" autocomplete="off" oninput={(e) => { setApiKey(e.currentTarget.value); keyPresent = validKey(e.currentTarget.value); keyTooShort = !!e.currentTarget.value && !keyPresent; }} /></label><p>{t('runner.keyHint')}</p>{#if keyTooShort}<p role="alert">{t('runner.keyShort')}</p>{/if}
-      <label>{t('runner.budget')} <input type="number" min="0.01" step="0.01" bind:value={options.budgetUsd} /></label>{/if}
-    <label>{t('runner.model')} <input bind:value={model} /></label>
-    <label>{t('runner.runs')} <select bind:value={options.runs}><option value="quick">{t('runner.quick')}</option><option value="thorough">{t('runner.thorough')}</option></select></label>
-    {#if denial}<p role="status">{t(denial === 'grade' ? 'runner.deniedGrade' : 'runner.deniedTraits')}</p>{/if}
-    <Button variant="secondary" disabled={!valid()} onclick={propose}>{t('runner.propose')}</Button>
+    <p>{$translate('runner.project')}: {project || '—'}</p>
+    <Button variant="secondary" onclick={chooseDemo}>{$translate('runner.demo')}</Button>{#if !preview}<Button variant="secondary" onclick={chooseProject}>{$translate('runner.choose')}</Button>{/if}
+    <label>{$translate('runner.agent')} <select bind:value={options.agent}><option value="claude">Claude Code</option><option value="codex">Codex</option></select></label>
+    <label>{$translate('runner.auth')} <select bind:value={options.auth} onchange={(e) => { const mode = e.currentTarget.value as RunOptions['auth']; changeAuth(mode); if (mode !== 'isolated') { keyPresent = false; if (keyInput) keyInput.value = ''; } }}><option value="subscription">{$translate('runner.subscription')}</option><option value="isolated">{$translate('runner.isolated')}</option></select></label>
+    {#if options.auth === 'isolated'}<label>API key <input bind:this={keyInput} type="password" autocomplete="off" oninput={(e) => { setApiKey(e.currentTarget.value); keyPresent = validKey(e.currentTarget.value); keyTooShort = !!e.currentTarget.value && !keyPresent; }} /></label><p>{$translate('runner.keyHint')}</p>{#if keyTooShort}<p role="alert">{$translate('runner.keyShort')}</p>{/if}
+      <label>{$translate('runner.budget')} <input type="number" min="0.01" step="0.01" bind:value={options.budgetUsd} /></label>{/if}
+    <label>{$translate('runner.model')} <input bind:value={model} /></label>
+    <label>{$translate('runner.runs')} <select bind:value={options.runs}><option value="quick">{$translate('runner.quick')}</option><option value="thorough">{$translate('runner.thorough')}</option></select></label>
+    {#if denial}<p role="status">{$translate(denial === 'grade' ? 'runner.deniedGrade' : 'runner.deniedTraits')}</p>{/if}
+    <Button variant="secondary" disabled={!valid()} onclick={propose}>{$translate('runner.propose')}</Button>
     {#each choices as choice}<label><input type="radio" name="task" value={choice} bind:group={task} /> {choice}</label>{/each}
-    <label>{t('runner.task')} <textarea bind:value={task}></textarea></label>
-    <p>{t('runner.estimate', { runs: estimate.abRuns, calls: estimate.agentCalls })}{#if estimate.avgTokens !== undefined} · {t('runner.averageTokens', { count: Math.round(estimate.avgTokens) })}{/if}{#if estimate.maxUsd !== undefined} · ${estimate.maxUsd} {options.agent === 'codex' ? t('runner.notEnforced') : ''}{/if}</p>
-    {#if estimate.warnThorough}<p role="alert">{t('runner.warning')}</p>{/if}
-    <Button disabled={!valid() || !task.trim()} onclick={start}>{t('runner.start')}</Button>
+    <label>{$translate('runner.task')} <textarea bind:value={task}></textarea></label>
+    <p>{$translate('runner.estimate', { runs: estimate.abRuns, calls: estimate.agentCalls })}{#if estimate.avgTokens !== undefined} · {$translate('runner.averageTokens', { count: Math.round(estimate.avgTokens) })}{/if}{#if estimate.maxUsd !== undefined} · ${estimate.maxUsd} {options.agent === 'codex' ? $translate('runner.notEnforced') : ''}{/if}</p>
+    {#if estimate.warnThorough}<p role="alert">{$translate('runner.warning')}</p>{/if}
+    <Button disabled={!valid() || !task.trim()} onclick={start}>{$translate('runner.start')}</Button>
   </fieldset></Card>
-  <Card><h2>{t('runner.progress')}</h2><p>{t('results.baseline')} {phase.startsWith('a-') ? '▶' : '○'} / {t('results.withSkill')} {phase.startsWith('b-') ? '▶' : '○'}</p>{#if busy}<Button variant="secondary" onclick={() => { controller?.abort(); clearSession(); }}>{t('runner.cancel')}</Button>{/if}<div aria-live="polite" class="log">{#each events as entry}<p><strong>{entry.arm}</strong> {entry.event.text ?? entry.event.tool?.name ?? entry.event.kind}</p>{/each}</div></Card></div></div>
+  <Card><h2>{$translate('runner.progress')}</h2><p>{$translate('results.baseline')} {phase.startsWith('a-') ? '▶' : '○'} / {$translate('results.withSkill')} {phase.startsWith('b-') ? '▶' : '○'}</p>{#if busy}<Button variant="secondary" onclick={() => { controller?.abort(); clearSession(); }}>{$translate('runner.cancel')}</Button>{/if}<div aria-live="polite" class="log">{#each events as entry}<p><strong>{entry.arm}</strong> {entry.event.text ?? entry.event.tool?.name ?? entry.event.kind}</p>{/each}</div></Card></div></div>
   {/if}
 </section>
 <style>

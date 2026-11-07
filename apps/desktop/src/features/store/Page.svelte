@@ -6,7 +6,7 @@
   import GradeBadge from '../../ui/GradeBadge.svelte';
   import { availableViews, createSampleSource, dedupe, filterSkills, rank, searchSkills, type Filters, type Grade, type SkillMeta, type View } from '@somm/core';
   import { navigate } from '../../lib/route';
-  import { t } from '../../i18n/t';
+  import { t, translate } from '../../i18n/t';
   import Card from '../../ui/Card.svelte';
   import Badge from '../../ui/Badge.svelte';
   import Spinner from '../../ui/Spinner.svelte';
@@ -42,23 +42,23 @@
 </script>
 <svelte:window onkeydown={shortcut} />
 <section class="store">
-  <header><div><p class="eyebrow">{t('store.eyebrow')}</p><h1>{t('store.title')}</h1><p class="muted">{t('store.intro')}</p></div></header>
-  <label class="search"><span>{t('store.search')}</span><input bind:this={search} bind:value={query} placeholder={t('store.searchPlaceholder')} aria-label={t('store.search')} /><kbd>⌘ K</kbd></label>
-  {#if loading}<Spinner label={t('store.loading')} /> <span>{t('store.loading')}</span>
-  {:else if error}<p role="alert">{t('store.error')}</p><button type="button" onclick={load}>{t('store.retry')}</button>
+  <header><div><p class="eyebrow">{$translate('store.eyebrow')}</p><h1>{$translate('store.title')}</h1><p class="muted">{$translate('store.intro')}</p></div></header>
+  <label class="search"><span>{$translate('store.search')}</span><input bind:this={search} bind:value={query} placeholder={$translate('store.searchPlaceholder')} aria-label={$translate('store.search')} /><kbd>⌘ K</kbd></label>
+  {#if loading}<Spinner label={$translate('store.loading')} /> <span>{$translate('store.loading')}</span>
+  {:else if error}<p role="alert">{$translate('store.error')}</p><button type="button" onclick={load}>{$translate('store.retry')}</button>
   {:else}
-    <Tabs items={tabs} bind:selected={view} label={t('store.views')} />
+    <Tabs items={tabs} bind:selected={view} label={$translate('store.views')} />
     <div class="filters">
-      <label>{t('store.category')}<select bind:value={category}><option value="">{t('store.all')}</option>{#each values(items.map(i => i.category)) as v}<option value={v}>{v}</option>{/each}</select></label>
-      <label>{t('store.agent')}<select bind:value={agent}><option value="">{t('store.all')}</option>{#each values(items.flatMap(i => i.agents)) as v}<option value={v}>{v}</option>{/each}</select></label>
-      <label>{t('store.source')}<select bind:value={source}><option value="">{t('store.all')}</option>{#each values(items.map(i => i.source)) as v}<option value={v}>{v}</option>{/each}</select></label>
-      <label>{t('store.license')}<select bind:value={license}><option value="">{t('store.all')}</option>{#each values(items.map(i => i.license)) as v}<option value={v}>{v}</option>{/each}</select></label>
-      <label>{t('store.minGrade')}<select bind:value={minGrade}><option value="">{t('store.all')}</option>{#each ['A','B','C','D','F'] as v}<option value={v}>{v}</option>{/each}</select></label>
+      <label>{$translate('store.category')}<select bind:value={category}><option value="">{$translate('store.all')}</option>{#each values(items.map(i => i.category)) as v}<option value={v}>{v}</option>{/each}</select></label>
+      <label>{$translate('store.agent')}<select bind:value={agent}><option value="">{$translate('store.all')}</option>{#each values(items.flatMap(i => i.agents)) as v}<option value={v}>{v}</option>{/each}</select></label>
+      <label>{$translate('store.source')}<select bind:value={source}><option value="">{$translate('store.all')}</option>{#each values(items.map(i => i.source)) as v}<option value={v}>{v}</option>{/each}</select></label>
+      <label>{$translate('store.license')}<select bind:value={license}><option value="">{$translate('store.all')}</option>{#each values(items.map(i => i.license)) as v}<option value={v}>{v}</option>{/each}</select></label>
+      <label>{$translate('store.minGrade')}<select bind:value={minGrade}><option value="">{$translate('store.all')}</option>{#each ['A','B','C','D','F'] as v}<option value={v}>{v}</option>{/each}</select></label>
     </div>
     {#each views as v}<div role="tabpanel" id={'panel-' + v} aria-labelledby={'tab-' + v} hidden={view !== v}>
-      {#if v === view}{#if visible.length}<div class="grid">{#each visible as item (item.id)}<Card><button type="button" class="skill" aria-label={t('store.open', { name: item.name })} onclick={() => navigate({ page: 'detail', skillId: item.id })}>
-        <div class="row"><strong>{item.name}</strong>{#if grades[item.id]}<GradeBadge grade={grades[item.id]} label={t('detail.gradeLabel', { grade: grades[item.id] })} />{:else}<span aria-label={t('store.unknownGrade')}>—</span>{/if}</div><p>{item.description}</p><div class="badges"><Badge>{item.source}</Badge>{#each item.agents as a}<Badge>{a}</Badge>{/each}</div><div class="stats">{#if item.stars !== undefined}<span>★ {item.stars}</span>{/if}{#if item.installs !== undefined}<span>↓ {item.installs}</span>{/if}</div>
-      </button></Card>{/each}</div>{:else}<p>{t('store.empty')}</p>{/if}{/if}
+      {#if v === view}{#if visible.length}<div class="grid">{#each visible as item (item.id)}<Card><button type="button" class="skill" aria-label={$translate('store.open', { name: item.name })} onclick={() => navigate({ page: 'detail', skillId: item.id })}>
+        <div class="row"><strong>{item.name}</strong>{#if grades[item.id]}<GradeBadge grade={grades[item.id]} label={$translate('detail.gradeLabel', { grade: grades[item.id] })} />{:else}<span aria-label={$translate('store.unknownGrade')}>—</span>{/if}</div><p>{item.description}</p><div class="badges"><Badge>{item.source}</Badge>{#each item.agents as a}<Badge>{a}</Badge>{/each}</div><div class="stats">{#if item.stars !== undefined}<span>★ {item.stars}</span>{/if}{#if item.installs !== undefined}<span>↓ {item.installs}</span>{/if}</div>
+      </button></Card>{/each}</div>{:else}<p>{$translate('store.empty')}</p>{/if}{/if}
     </div>{/each}
   {/if}
 </section>
