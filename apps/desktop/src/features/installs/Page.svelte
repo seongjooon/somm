@@ -19,6 +19,7 @@
   let detected = $state<Record<AgentId, DetectResult>>({ claude: { installed: false, loggedIn: 'unknown' }, codex: { installed: false, loggedIn: 'unknown' } });
   let items = $state<InstalledSkill[]>([]), backups = $state<Backup[]>([]);
   let plugins = $state<Record<AgentId, string[]>>({ claude: [], codex: [] });
+  let unreadable = $state<string[]>([]);
   let conflicts = $state<Record<string, Conflict[]>>({}), updates = $state<Record<string, boolean | null>>({});
   let project = $state<string | undefined>(), prepared = $state<Prepared | undefined>();
   let installOpen = $state(false), confirmOpen = $state(false), warned = $state(false);
@@ -35,7 +36,8 @@
   async function refresh() {
     items = await service.list(project);
     backups = await service.backups();
-    conflicts = await service.conflicts(items);
+    const inspection = await service.conflicts(items);
+    conflicts = inspection.conflicts; unreadable = inspection.unreadable;
   }
   async function chooseProject() {
     const value = import.meta.env.DEV && !('__TAURI_INTERNALS__' in window) ? '/demo/project' : await open({ directory: true, recursive: true });
@@ -100,7 +102,7 @@
             {:else}
               {#each grouped[agent][currentScope] as item (item.dir)}
                 <div class="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
-                  <div class="min-w-0"><div class="flex flex-wrap items-center gap-2"><strong>{item.name}</strong><Badge>{item.enabled ? t('installs.enabled') : t('installs.disabled')}</Badge>
+                  <div class="min-w-0"><div class="flex flex-wrap items-center gap-2"><strong>{item.name}</strong><Badge>{item.enabled ? t('installs.enabled') : t('installs.disabled')}</Badge>{#if unreadable.includes(item.dir)}<Badge>{t('installs.unreadable')}</Badge>{/if}
                     {#if conflicts[item.dir]?.length}<Badge>{t('installs.conflicts', { n: conflicts[item.dir].length })}</Badge>{/if}
                     {#if updates[item.dir] === true}<Badge>{t('installs.updateAvailable')}</Badge>{:else if updates[item.dir] === false}<Badge>{t('installs.upToDate')}</Badge>{/if}
                   </div><p class="break-all text-xs text-muted">{item.dir}</p>

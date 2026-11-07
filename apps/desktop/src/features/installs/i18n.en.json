@@ -51,5 +51,6 @@
   "installs.install": "Install",
   "installs.confirmTitle": "Confirm action",
   "installs.cancel": "Cancel",
-  "installs.confirm": "Confirm"
+  "installs.confirm": "Confirm",
+  "installs.unreadable": "Unreadable"
 }

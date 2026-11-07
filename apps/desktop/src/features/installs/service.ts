@@ -1,6 +1,7 @@
-import { createAgents, createSampleSource, detectConflicts, fetchSkillFiles, hashFiles, installGate, readInstallMarker, readLocalSkill, restoreBackup, scanSkill, skillText, skillTraits, type AgentId, type Conflict, type DetectResult, type InstalledSkill, type Platform, type Scope, type SkillFile, type SkillMeta } from '@somm/core';
+import { createAgents, createSampleSource, fetchSkillFiles, hashFiles, installGate, readInstallMarker, readLocalSkill, restoreBackup, scanSkill, type AgentId, type Conflict, type DetectResult, type InstalledSkill, type Platform, type Scope, type SkillFile, type SkillMeta } from '@somm/core';
 import { createTauriPlatform } from '../../platform';
 import { updateAvailable } from './helpers';
+import { inspectConflicts } from './conflicts';
 
 export type Backup = { id: string; name: string; agent: AgentId; scope: Scope; created_at: string; action: string };
 export type Prepared = { meta: SkillMeta; files: SkillFile[]; grade: string; gate: ReturnType<typeof installGate> };
@@ -9,7 +10,7 @@ export interface Service {
   list(project?: string): Promise<InstalledSkill[]>;
   plugins(agent: AgentId): Promise<string[]>;
   backups(): Promise<Backup[]>;
-  conflicts(items: InstalledSkill[]): Promise<Record<string, Conflict[]>>;
+  conflicts(items: InstalledSkill[]): Promise<{ conflicts: Record<string, Conflict[]>; unreadable: string[] }>;
   update(item: InstalledSkill): Promise<boolean | null>;
   toggle(item: InstalledSkill): Promise<void>;
   uninstall(item: InstalledSkill): Promise<void>;
@@ -35,15 +36,7 @@ function realService(p: Platform): Service {
     async list(project) { return (await Promise.all([agents.claude.listInstalled(project), agents.codex.listInstalled(project)])).flat(); },
     plugins: agent => agents[agent].listPlugins(),
     backups: () => p.db.select<Backup>("SELECT * FROM backups WHERE action = 'backup' ORDER BY created_at DESC"),
-    async conflicts(items) {
-      const result: Record<string, Conflict[]> = {};
-      const descriptions = await Promise.all(items.map(async item => {
-        const files = (await readLocalSkill(item.dir, p)).files;
-        return { item, name: item.name, traits: skillTraits(files), text: files.map(f => skillText(f.contents) ?? '').join('\n') };
-      }));
-      for (const entry of descriptions) result[entry.item.dir] = detectConflicts(entry, descriptions.filter(other => other !== entry && other.item.agent === entry.item.agent && other.item.enabled));
-      return result;
-    },
+    conflicts: items => inspectConflicts(p, items),
     async update(item) {
       const marker = await readInstallMarker(p, item);
       if (!marker?.source) return null;

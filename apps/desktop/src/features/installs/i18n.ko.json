@@ -51,5 +51,6 @@
   "installs.install": "설치",
   "installs.confirmTitle": "작업 확인",
   "installs.cancel": "취소",
-  "installs.confirm": "확인"
+  "installs.confirm": "확인",
+  "installs.unreadable": "읽을 수 없음"
 }
