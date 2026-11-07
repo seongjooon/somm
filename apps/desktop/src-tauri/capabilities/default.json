@@ -144,6 +144,96 @@
         },
         {
           "path": "/**/.config/gh/**"
+        },
+        {
+          "path": "/**/.claude.json"
+        },
+        {
+          "path": "/**/.credentials.json"
+        },
+        {
+          "path": "/**/.credentials.*"
+        },
+        {
+          "path": "/**/.netrc.*"
+        },
+        {
+          "path": "/**/.git-credentials"
+        },
+        {
+          "path": "/**/.gitconfig"
+        },
+        {
+          "path": "/**/.docker"
+        },
+        {
+          "path": "/**/.docker/**"
+        },
+        {
+          "path": "/**/.kube"
+        },
+        {
+          "path": "/**/.kube/**"
+        },
+        {
+          "path": "/**/id_rsa"
+        },
+        {
+          "path": "/**/id_ed25519"
+        },
+        {
+          "path": "/**/Library/Keychains"
+        },
+        {
+          "path": "/**/Library/Keychains/**"
+        },
+        {
+          "path": "/**/Library/Application Support/Google/Chrome"
+        },
+        {
+          "path": "/**/Library/Application Support/Google/Chrome/**"
+        },
+        {
+          "path": "/**/Library/Application Support/Firefox"
+        },
+        {
+          "path": "/**/Library/Application Support/Firefox/**"
+        },
+        {
+          "path": "/**/Library/Safari"
+        },
+        {
+          "path": "/**/Library/Safari/**"
+        },
+        {
+          "path": "/**/.ENV"
+        },
+        {
+          "path": "/**/.ENV.*"
+        },
+        {
+          "path": "/**/.SSH"
+        },
+        {
+          "path": "/**/.SSH/**"
+        },
+        {
+          "path": "/**/.AWS"
+        },
+        {
+          "path": "/**/.AWS/**"
+        },
+        {
+          "path": "/**/.GNUPG"
+        },
+        {
+          "path": "/**/.GNUPG/**"
+        },
+        {
+          "path": "/**/.NETRC"
+        },
+        {
+          "path": "/**/.NETRC.*"
         }
       ]
     },

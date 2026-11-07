@@ -42,6 +42,8 @@ pub fn symlink(app: tauri::AppHandle, target: String, link: String) -> Result<()
     )
 }
 
+// Path checks and filesystem operations are subject to TOCTOU races.
+// Resolution requires the path or its immediate parent to exist and otherwise fails closed.
 fn resolved_sensitive_path(path: &std::path::Path) -> bool {
     std::fs::canonicalize(path)
         .or_else(|_| -> std::io::Result<std::path::PathBuf> {
@@ -54,13 +56,15 @@ fn resolved_sensitive_path(path: &std::path::Path) -> bool {
 
 // Keep this in sync with the global fs:scope deny entries.
 fn sensitive_path(path: &std::path::Path) -> bool {
-    let parts: Vec<_> = path.components().map(|part| part.as_os_str()).collect();
-    parts.iter().enumerate().any(|(i, part)| {
-        let name = part.to_string_lossy();
-        name == ".env" || name.starts_with(".env.")
-            || [".ssh", ".aws", ".gnupg", ".netrc", ".npmrc", ".pypirc"].contains(&name.as_ref())
-            || (name == ".git" && parts.get(i + 1).is_some_and(|p| *p == "config" || *p == "hooks"))
-            || (name == ".config" && parts.get(i + 1).is_some_and(|p| *p == "gh"))
+    let parts: Vec<_> = path.components().map(|part| part.as_os_str().to_string_lossy().to_lowercase()).collect();
+    parts.iter().enumerate().any(|(i, name)| {
+        let rest = &parts[i..];
+        [".env", ".netrc", ".credentials"].iter().any(|prefix| name == prefix || name.starts_with(&format!("{prefix}.")))
+            || [".ssh", ".aws", ".gnupg", ".npmrc", ".pypirc", ".claude.json", ".git-credentials", ".gitconfig", ".docker", ".kube", "id_rsa", "id_ed25519"].contains(&name.as_str())
+            || (name == ".git" && rest.get(1).is_some_and(|p| p == "config" || p == "hooks"))
+            || (name == ".config" && rest.get(1).is_some_and(|p| p == "gh"))
+            || (name == "library" && (rest.get(1).is_some_and(|p| p == "keychains" || p == "safari")
+                || (rest.get(1).is_some_and(|p| p == "application support") && (rest.get(2).is_some_and(|p| p == "firefox") || (rest.get(2).is_some_and(|p| p == "google") && rest.get(3).is_some_and(|p| p == "chrome"))))))
     })
 }
 
@@ -123,6 +127,21 @@ pub fn readlink(app: tauri::AppHandle, path: String) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::{scoped_readlink, scoped_symlink};
+    #[test]
+    fn deny_entries_match_custom_command_checks() {
+        let capability: serde_json::Value = serde_json::from_str(include_str!("../capabilities/default.json")).unwrap();
+        let entries = capability["permissions"].as_array().unwrap().iter()
+            .find(|entry| entry["identifier"] == "fs:scope").unwrap()["deny"].as_array().unwrap();
+        for entry in entries {
+            let pattern = entry["path"].as_str().unwrap();
+            let sample = pattern.replace("/**/", "/tmp/project/").replace("/**", "/sample").replace('*', "example");
+            assert!(super::sensitive_path(std::path::Path::new(&sample)), "{pattern}: {sample}");
+            assert!(super::sensitive_path(std::path::Path::new(&sample.to_uppercase())), "uppercase: {sample}");
+        }
+        for sample in [".claude.json", ".credentials.json", ".credentials.token", ".netrc.backup", ".git-credentials", ".gitconfig", ".docker/config.json", ".kube/config", "id_rsa", "id_ed25519", "Library/Keychains/login.keychain-db", "Library/Application Support/Google/Chrome/Default", "Library/Application Support/Firefox/Profiles", "Library/Safari/History.db"] {
+            assert!(super::sensitive_path(std::path::Path::new(&format!("/tmp/{sample}"))), "{sample}");
+        }
+    }
     #[test]
     fn configured_scope_allows_cache_and_denies_sensitive_paths() {
         let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
