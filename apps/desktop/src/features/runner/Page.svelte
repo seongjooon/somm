@@ -14,6 +14,7 @@
 
   let service: Service | undefined = $state(), skill: Skill | undefined = $state();
   let project = $state(''), model = $state(''), task = $state(''), choices: string[] = $state([]), error = $state(''), busy = $state(false), phase = $state('');
+  let history: number[] = $state([]);
   let options: RunOptions = $state({ agent: 'claude', auth: 'subscription', runs: 'quick' });
   let keyPresent = $state(false), events: { arm: string; event: AgentEvent }[] = $state([]);
   let controller: AbortController | undefined;
@@ -22,7 +23,7 @@
   let keyInput: HTMLInputElement | undefined = $state();
   const preview = import.meta.env.DEV && !isTauri();
   let denial = $derived(skill ? staticDenial(skill) : undefined);
-  let estimate = $derived(estimateUsage(options, true, []));
+  let estimate = $derived(estimateUsage(options, !choices.includes(task), history));
   function clearSession() { resetKey(keyInput); keyPresent = false; }
   $effect(() => {
     window.addEventListener('beforeunload', clearSession);
@@ -38,6 +39,12 @@
       const loaded = await s.load(id); if (active) { service = s; skill = loaded; }
     } catch { if (active) error = t('runner.loadError'); } })();
     return () => { active = false; mounted = false; controller?.abort(); clearSession(); };
+  });
+  $effect(() => {
+    const current = service, agent = options.agent;
+    let active = true; history = [];
+    if (current) void current.history(agent).then(values => { if (active) history = values; }).catch(() => { if (active) history = []; });
+    return () => { active = false; };
   });
   async function chooseProject() { try { const selected = await open({ directory: true, recursive: true }); if (typeof selected === 'string') project = selected; } catch { error = t('runner.actionError'); } }
   function valid() { return !!skill && !denial && !!project && (options.auth !== 'isolated' || (keyPresent && !!options.budgetUsd && options.budgetUsd > 0)); }
@@ -79,7 +86,7 @@
     <Button variant="secondary" disabled={!valid()} onclick={propose}>{t('runner.propose')}</Button>
     {#each choices as choice}<label><input type="radio" name="task" value={choice} bind:group={task} /> {choice}</label>{/each}
     <label>{t('runner.task')} <textarea bind:value={task}></textarea></label>
-    <p>{t('runner.estimate', { runs: estimate.abRuns, calls: estimate.agentCalls })}{#if estimate.maxUsd !== undefined} · ${estimate.maxUsd} {options.agent === 'codex' ? t('runner.notEnforced') : ''}{/if}</p>
+    <p>{t('runner.estimate', { runs: estimate.abRuns, calls: estimate.agentCalls })}{#if estimate.avgTokens !== undefined} · {t('runner.averageTokens', { count: Math.round(estimate.avgTokens) })}{/if}{#if estimate.maxUsd !== undefined} · ${estimate.maxUsd} {options.agent === 'codex' ? t('runner.notEnforced') : ''}{/if}</p>
     {#if estimate.warnThorough}<p role="alert">{t('runner.warning')}</p>{/if}
     <Button disabled={!valid() || !task.trim()} onclick={start}>{t('runner.start')}</Button>
   </fieldset></Card>

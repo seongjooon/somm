@@ -8,6 +8,7 @@ export async function createFakeService(): Promise<Service> {
       if (!meta) throw new Error('Skill not found');
       return { meta, files: [{ path: 'SKILL.md', contents: `# ${meta.name}\n${meta.description}` }] };
     },
+    async history() { return []; },
     async propose() { return ['Add a focused test', 'Improve error handling', 'Refactor a small module']; },
     async run(req, onEvent) {
       const metric = (tokens: number) => ({ ok: true, tokensIn: tokens, tokensOut: 150, durationMs: 2200, tests: { passed: 4, failed: 0 }, diff: { files: 1, added: 3, removed: 1, patch: '-old\n+new' }, inventory: { skills: [], plugins: [], mcp: [] }, canaryHits: [] });

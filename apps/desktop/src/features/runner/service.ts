@@ -3,6 +3,7 @@ import { createTauriPlatform } from '../../platform';
 import { getApiKey } from './session';
 import { checkRunAllowed } from './guards';
 import { saveResult } from './save';
+import { tokenHistory } from './history';
 
 export interface Skill { meta: SkillMeta; files: SkillFile[] }
 export interface Request { skill: Skill; project: string; options: RunOptions; model?: string; task: string; signal: AbortSignal }
@@ -19,6 +20,10 @@ export async function createService() {
   const opts = (options: RunOptions): RunOptions => ({ ...options, ...(options.auth === 'isolated' ? { apiKey: getApiKey() } : {}) });
   return {
     load: (id: string) => loadSkill(id, p),
+    async history(agent: RunOptions['agent']) {
+      try { return tokenHistory(await p.db.select<{ metrics_json: string }>('SELECT run_arms.metrics_json FROM run_arms JOIN runs ON runs.id = run_arms.run_id WHERE runs.agent = ?', [agent])); }
+      catch { return []; }
+    },
     async propose(req: Omit<Request, 'task'>) {
       await checkRunAllowed(p, req.skill);
       return proposeTasks(p, deps(req.options), { runId: crypto.randomUUID(), projectDir: req.project, skill: req.skill.meta, opts: opts(req.options), model: req.model?.trim() || undefined, signal: req.signal });
