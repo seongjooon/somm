@@ -10,3 +10,6 @@ export function resetKey(input?: { value: string }): void {
   clearApiKey();
   if (input) input.value = '';
 }
+
+export function validKey(value: string): boolean { return [...value].length >= 8; }
+export function finishProposal(success: boolean, input?: { value: string }): void { if (!success) resetKey(input); }

@@ -21,3 +21,16 @@ it('clears the input and session when a proposal is cancelled', async () => {
   expect(input.value).toBe('');
   expect(session.getApiKey()).toBeUndefined();
 });
+it('retains key after successful proposal and clears on failure', async () => {
+  const session = await import('./session');
+  session.setApiKey('valid-key');
+  session.finishProposal(true);
+  expect(session.getApiKey()).toBe('valid-key');
+  session.finishProposal(false);
+  expect(session.getApiKey()).toBeUndefined();
+});
+it('requires isolated keys to have at least eight characters', async () => {
+  const session = await import('./session');
+  expect(session.validKey('short')).toBe(false);
+  expect(session.validKey('long-enough')).toBe(true);
+});
