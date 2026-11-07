@@ -7,7 +7,7 @@
   import Badge from '../../ui/Badge.svelte';
   import Dialog from '../../ui/Dialog.svelte';
   import Spinner from '../../ui/Spinner.svelte';
-  import { t } from '../../i18n/t';
+  import { t, translate } from '../../i18n/t';
   import { route, navigate } from '../../lib/route';
   import { conflictLabelKey, groupInstalled } from './helpers';
   import { createActionLock } from './action-lock';
@@ -86,61 +86,61 @@
 
 <section class="mx-auto max-w-5xl space-y-6">
   <header class="flex flex-wrap items-end justify-between gap-4">
-    <div><p class="text-sm text-muted">{t('installs.eyebrow')}</p><h1 class="text-3xl font-semibold">{t('installs.title')}</h1><p class="mt-2 text-muted">{t('installs.subtitle')}</p></div>
-    <Button variant="secondary" disabled={busy || loading} onclick={() => task(chooseProject)}>{t('installs.chooseProject')}</Button>
+    <div><p class="text-sm text-muted">{$translate('installs.eyebrow')}</p><h1 class="text-3xl font-semibold">{$translate('installs.title')}</h1><p class="mt-2 text-muted">{$translate('installs.subtitle')}</p></div>
+    <Button variant="secondary" disabled={busy || loading} onclick={() => task(chooseProject)}>{$translate('installs.chooseProject')}</Button>
   </header>
-  {#if project}<p class="break-all text-sm text-muted">{t('installs.projectSelected', { project })}</p>{/if}
-  {#if error}<div role="alert" class="rounded-lg border border-border bg-surface p-4">{t('installs.error')}: {error}</div>{/if}
-  {#if loading}<Spinner label={t('installs.loading')} /><span class="ml-2">{t('installs.loading')}</span>
+  {#if project}<p class="break-all text-sm text-muted">{$translate('installs.projectSelected', { project })}</p>{/if}
+  {#if error}<div role="alert" class="rounded-lg border border-border bg-surface p-4">{$translate('installs.error')}: {error}</div>{/if}
+  {#if loading}<Spinner label={$translate('installs.loading')} /><span class="ml-2">{$translate('installs.loading')}</span>
   {:else}
     {#each agentIds as agent}
       <Card>
-        <div class="flex flex-wrap items-center justify-between gap-3"><h2 class="text-xl font-semibold">{t(`installs.agent.${agent}`)}</h2>
-          <Badge>{!detected[agent].installed ? t('installs.notInstalled') : detected[agent].loggedIn === false ? t('installs.notLoggedIn') : detected[agent].loggedIn === 'unknown' ? t('installs.loginUnknown') : t('installs.ready')}</Badge>
+        <div class="flex flex-wrap items-center justify-between gap-3"><h2 class="text-xl font-semibold">{$translate(`installs.agent.${agent}`)}</h2>
+          <Badge>{!detected[agent].installed ? $translate('installs.notInstalled') : detected[agent].loggedIn === false ? $translate('installs.notLoggedIn') : detected[agent].loggedIn === 'unknown' ? $translate('installs.loginUnknown') : $translate('installs.ready')}</Badge>
         </div>
         {#each scopes as currentScope}
-          <div class="mt-5"><h3 class="font-semibold">{t(`installs.scope.${currentScope}`)}</h3>
-            {#if currentScope === 'project' && !project}<p class="mt-2 text-sm text-muted">{t('installs.selectProject')}</p>
-            {:else if grouped[agent][currentScope].length === 0}<p class="mt-2 text-sm text-muted">{t('installs.empty')}</p>
+          <div class="mt-5"><h3 class="font-semibold">{$translate(`installs.scope.${currentScope}`)}</h3>
+            {#if currentScope === 'project' && !project}<p class="mt-2 text-sm text-muted">{$translate('installs.selectProject')}</p>
+            {:else if grouped[agent][currentScope].length === 0}<p class="mt-2 text-sm text-muted">{$translate('installs.empty')}</p>
             {:else}
               {#each grouped[agent][currentScope] as item (item.dir)}
                 <div class="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
-                  <div class="min-w-0"><div class="flex flex-wrap items-center gap-2"><strong>{item.name}</strong><Badge>{item.enabled ? t('installs.enabled') : t('installs.disabled')}</Badge>{#if unreadable.includes(item.dir)}<Badge>{t('installs.unreadable')}</Badge>{/if}
-                    {#if conflicts[item.dir]?.length}<Badge>{t(conflictLabelKey(conflicts[item.dir].length), { n: conflicts[item.dir].length })}</Badge>{/if}
-                    {#if updates[item.dir] === true}<Badge>{t('installs.updateAvailable')}</Badge>{:else if updates[item.dir] === false}<Badge>{t('installs.upToDate')}</Badge>{/if}
+                  <div class="min-w-0"><div class="flex flex-wrap items-center gap-2"><strong>{item.name}</strong><Badge>{item.enabled ? $translate('installs.enabled') : $translate('installs.disabled')}</Badge>{#if unreadable.includes(item.dir)}<Badge>{$translate('installs.unreadable')}</Badge>{/if}
+                    {#if conflicts[item.dir]?.length}<Badge>{$translate(conflictLabelKey(conflicts[item.dir].length), { n: conflicts[item.dir].length })}</Badge>{/if}
+                    {#if updates[item.dir] === true}<Badge>{$translate('installs.updateAvailable')}</Badge>{:else if updates[item.dir] === false}<Badge>{$translate('installs.upToDate')}</Badge>{/if}
                   </div><p class="break-all text-xs text-muted">{item.dir}</p>
-                  {#each conflicts[item.dir] ?? [] as conflict}<p class="text-sm text-muted">{t('installs.conflictWith', { kind: conflict.kind, name: conflict.with })}</p>{/each}</div>
-                  <div class="flex flex-wrap gap-2"><Button variant="secondary" disabled={busy} onclick={() => task(async () => { updates[item.dir] = await service.update(item); if (updates[item.dir] === null) error = t('installs.noSource'); })}>{t('installs.checkUpdate')}</Button>
-                    <Button variant="secondary" disabled={busy} onclick={() => task(async () => { await service.toggle(item); await refresh(); })}>{item.enabled ? t('installs.disable') : t('installs.enable')}</Button>
-                    <Button variant="danger" disabled={busy} onclick={() => confirm(t('installs.uninstallConfirm', { name: item.name }), async () => { await service.uninstall(item); await refresh(); })}>{t('installs.uninstall')}</Button></div>
+                  {#each conflicts[item.dir] ?? [] as conflict}<p class="text-sm text-muted">{$translate('installs.conflictWith', { kind: conflict.kind, name: conflict.with })}</p>{/each}</div>
+                  <div class="flex flex-wrap gap-2"><Button variant="secondary" disabled={busy} onclick={() => task(async () => { updates[item.dir] = await service.update(item); if (updates[item.dir] === null) error = $translate('installs.noSource'); })}>{$translate('installs.checkUpdate')}</Button>
+                    <Button variant="secondary" disabled={busy} onclick={() => task(async () => { await service.toggle(item); await refresh(); })}>{item.enabled ? $translate('installs.disable') : $translate('installs.enable')}</Button>
+                    <Button variant="danger" disabled={busy} onclick={() => confirm($translate('installs.uninstallConfirm', { name: item.name }), async () => { await service.uninstall(item); await refresh(); })}>{$translate('installs.uninstall')}</Button></div>
                 </div>
               {/each}
             {/if}
           </div>
         {/each}
-        <div class="mt-5 border-t border-border pt-4"><h3 class="font-semibold">{t('installs.plugins')}</h3><p class="mt-2 text-sm text-muted">{plugins[agent].length ? plugins[agent].join(', ') : t('installs.noPlugins')}</p></div>
+        <div class="mt-5 border-t border-border pt-4"><h3 class="font-semibold">{$translate('installs.plugins')}</h3><p class="mt-2 text-sm text-muted">{plugins[agent].length ? plugins[agent].join(', ') : $translate('installs.noPlugins')}</p></div>
       </Card>
     {/each}
-    <Card><h2 class="text-xl font-semibold">{t('installs.backups')}</h2>
-      {#if !backups.length}<p class="mt-2 text-muted">{t('installs.noBackups')}</p>{/if}
-      {#each backups as backup (backup.id)}<div class="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3"><div><strong>{backup.name}</strong><p class="text-sm text-muted">{t(`installs.agent.${backup.agent}`)} · {t(`installs.scope.${backup.scope}`)} · {backup.created_at}</p></div><Button variant="secondary" disabled={busy} onclick={() => confirm(t('installs.restoreConfirm', { name: backup.name }), () => requestRestore(backup))}>{t('installs.restore')}</Button></div>{/each}
+    <Card><h2 class="text-xl font-semibold">{$translate('installs.backups')}</h2>
+      {#if !backups.length}<p class="mt-2 text-muted">{$translate('installs.noBackups')}</p>{/if}
+      {#each backups as backup (backup.id)}<div class="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3"><div><strong>{backup.name}</strong><p class="text-sm text-muted">{$translate(`installs.agent.${backup.agent}`)} · {$translate(`installs.scope.${backup.scope}`)} · {backup.created_at}</p></div><Button variant="secondary" disabled={busy} onclick={() => confirm($translate('installs.restoreConfirm', { name: backup.name }), () => requestRestore(backup))}>{$translate('installs.restore')}</Button></div>{/each}
     </Card>
   {/if}
 </section>
-<Dialog bind:open={installOpen} title={t('installs.installTitle')} closeLabel={t('installs.close')}>
-  {#if error}<p role="alert">{t('installs.error')}: {error}</p>{/if}
-  {#if !prepared}<p>{busy ? t('installs.loading') : t('installs.installUnavailable')}</p>
+<Dialog bind:open={installOpen} title={$translate('installs.installTitle')} closeLabel={$translate('installs.close')}>
+  {#if error}<p role="alert">{$translate('installs.error')}: {error}</p>{/if}
+  {#if !prepared}<p>{busy ? $translate('installs.loading') : $translate('installs.installUnavailable')}</p>
   {:else}
-    <div class="space-y-4"><div><h3 class="font-semibold">{prepared.meta.name}</h3><p class="text-sm text-muted">{prepared.meta.description}</p><Badge>{t('installs.grade', { grade: prepared.grade })}</Badge></div>
-      <label class="block">{t('installs.agentLabel')}<select class="mt-1 block w-full rounded border border-border bg-raised p-2" bind:value={selectedAgent}>{#each agentIds as agent}<option value={agent} disabled={!detected[agent].installed || !prepared.meta.agents.includes(agent)}>{t(`installs.agent.${agent}`)}{!detected[agent].installed ? ` — ${t('installs.notInstalled')}` : ''}</option>{/each}</select></label>
-      <label class="block">{t('installs.scopeLabel')}<select class="mt-1 block w-full rounded border border-border bg-raised p-2" bind:value={scope}><option value="global">{t('installs.scope.global')}</option><option value="project">{t('installs.scope.project')}</option></select></label>
-      {#if scope === 'project'}<Button variant="secondary" disabled={busy} onclick={() => task(chooseProject)}>{project ?? t('installs.chooseProject')}</Button>{/if}
-      <label class="block">{t('installs.mode')}<select class="mt-1 block w-full rounded border border-border bg-raised p-2" bind:value={mode}><option value="copy">{t('installs.copy')}</option><option value="symlink">{t('installs.symlink')}</option></select></label>
-      {#if mode === 'symlink'}<Button variant="secondary" disabled={busy} onclick={() => task(chooseLink)}>{linkSource ?? t('installs.chooseSource')}</Button>{/if}
-      <p class="text-sm text-muted">{t('installs.backupNotice')}</p>
-      {#if prepared.gate === 'blocked'}<p role="alert">{t('installs.blocked')}</p>{:else if prepared.gate === 'after-test'}<label class="flex gap-2"><input type="checkbox" bind:checked={warned} />{t('installs.warning')}</label>{/if}
-      <Button disabled={busy || prepared.gate === 'blocked' || (prepared.gate === 'after-test' && !warned) || !detected[selectedAgent].installed || !prepared.meta.agents.includes(selectedAgent) || (scope === 'project' && !project) || (mode === 'symlink' && !linkSource)} onclick={() => task(() => submitInstall())}>{t('installs.install')}</Button>
+    <div class="space-y-4"><div><h3 class="font-semibold">{prepared.meta.name}</h3><p class="text-sm text-muted">{prepared.meta.description}</p><Badge>{$translate('installs.grade', { grade: prepared.grade })}</Badge></div>
+      <label class="block">{$translate('installs.agentLabel')}<select class="mt-1 block w-full rounded border border-border bg-raised p-2" bind:value={selectedAgent}>{#each agentIds as agent}<option value={agent} disabled={!detected[agent].installed || !prepared.meta.agents.includes(agent)}>{$translate(`installs.agent.${agent}`)}{!detected[agent].installed ? ` — ${$translate('installs.notInstalled')}` : ''}</option>{/each}</select></label>
+      <label class="block">{$translate('installs.scopeLabel')}<select class="mt-1 block w-full rounded border border-border bg-raised p-2" bind:value={scope}><option value="global">{$translate('installs.scope.global')}</option><option value="project">{$translate('installs.scope.project')}</option></select></label>
+      {#if scope === 'project'}<Button variant="secondary" disabled={busy} onclick={() => task(chooseProject)}>{project ?? $translate('installs.chooseProject')}</Button>{/if}
+      <label class="block">{$translate('installs.mode')}<select class="mt-1 block w-full rounded border border-border bg-raised p-2" bind:value={mode}><option value="copy">{$translate('installs.copy')}</option><option value="symlink">{$translate('installs.symlink')}</option></select></label>
+      {#if mode === 'symlink'}<Button variant="secondary" disabled={busy} onclick={() => task(chooseLink)}>{linkSource ?? $translate('installs.chooseSource')}</Button>{/if}
+      <p class="text-sm text-muted">{$translate('installs.backupNotice')}</p>
+      {#if prepared.gate === 'blocked'}<p role="alert">{$translate('installs.blocked')}</p>{:else if prepared.gate === 'after-test'}<label class="flex gap-2"><input type="checkbox" bind:checked={warned} />{$translate('installs.warning')}</label>{/if}
+      <Button disabled={busy || prepared.gate === 'blocked' || (prepared.gate === 'after-test' && !warned) || !detected[selectedAgent].installed || !prepared.meta.agents.includes(selectedAgent) || (scope === 'project' && !project) || (mode === 'symlink' && !linkSource)} onclick={() => task(() => submitInstall())}>{$translate('installs.install')}</Button>
     </div>
   {/if}
 </Dialog>
-<Dialog bind:open={confirmOpen} title={t('installs.confirmTitle')} closeLabel={t('installs.close')}><p>{confirmMessage}</p><div class="mt-4 flex gap-2"><Button variant="secondary" disabled={busy} onclick={() => confirmOpen = false}>{t('installs.cancel')}</Button><Button variant="danger" disabled={busy} onclick={accept}>{t('installs.confirm')}</Button></div></Dialog>
+<Dialog bind:open={confirmOpen} title={$translate('installs.confirmTitle')} closeLabel={$translate('installs.close')}><p>{confirmMessage}</p><div class="mt-4 flex gap-2"><Button variant="secondary" disabled={busy} onclick={() => confirmOpen = false}>{$translate('installs.cancel')}</Button><Button variant="danger" disabled={busy} onclick={accept}>{$translate('installs.confirm')}</Button></div></Dialog>
