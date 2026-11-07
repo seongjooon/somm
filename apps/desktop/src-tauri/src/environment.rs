@@ -44,6 +44,11 @@ mod tests {
         std::fs::remove_dir_all(root).unwrap();
     }
     #[test]
+    fn inherited_secrets_are_removed_but_overrides_work() {
+        for name in ["GITHUB_TOKEN", "AWS_SECRET_ACCESS_KEY", "OPENAI_API_KEY", "MY_PASSWORD", "MY_PASSWD", "CREDENTIAL_FILE", "SSH_AUTH_SOCK"] { assert!(super::sensitive(name)); }
+        for name in ["PATH", "HOME", "USER"] { assert!(!super::sensitive(name)); }
+    }
+    #[test]
     fn pwd_resolution_ignores_path_and_runs_physical_directory_check() {
         let root = std::env::temp_dir().join(format!("somm-pwd-{}", std::process::id()));
         std::fs::create_dir_all(&root).unwrap();
@@ -159,11 +164,16 @@ impl Environment {
             && crate::process::is_allowed(name, path)
     }
     pub fn apply(&self, cmd: &mut Command) {
+        for (key, _) in std::env::vars_os() { if sensitive(&key.to_string_lossy()) { cmd.env_remove(key); } }
         for key in KEYS {
             cmd.env_remove(key);
         }
         cmd.envs(self.vars());
     }
+}
+fn sensitive(name: &str) -> bool {
+    let name = name.to_ascii_uppercase();
+    ["KEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD", "CREDENTIAL", "AUTH"].iter().any(|part| name.contains(part))
 }
 fn find_bin(name: &str, path: &str) -> Option<String> {
     if name == "pwd" { return Some("/bin/pwd".into()); }
