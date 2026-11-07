@@ -9,7 +9,7 @@
   import Spinner from '../../ui/Spinner.svelte';
   import { t } from '../../i18n/t';
   import { route, navigate } from '../../lib/route';
-  import { groupInstalled } from './helpers';
+  import { conflictLabelKey, groupInstalled } from './helpers';
   import { createActionLock } from './action-lock';
   import { createService, type Backup, type Prepared, type Service } from './service';
 
@@ -106,7 +106,7 @@
               {#each grouped[agent][currentScope] as item (item.dir)}
                 <div class="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
                   <div class="min-w-0"><div class="flex flex-wrap items-center gap-2"><strong>{item.name}</strong><Badge>{item.enabled ? t('installs.enabled') : t('installs.disabled')}</Badge>{#if unreadable.includes(item.dir)}<Badge>{t('installs.unreadable')}</Badge>{/if}
-                    {#if conflicts[item.dir]?.length}<Badge>{t('installs.conflicts', { n: conflicts[item.dir].length })}</Badge>{/if}
+                    {#if conflicts[item.dir]?.length}<Badge>{t(conflictLabelKey(conflicts[item.dir].length), { n: conflicts[item.dir].length })}</Badge>{/if}
                     {#if updates[item.dir] === true}<Badge>{t('installs.updateAvailable')}</Badge>{:else if updates[item.dir] === false}<Badge>{t('installs.upToDate')}</Badge>{/if}
                   </div><p class="break-all text-xs text-muted">{item.dir}</p>
                   {#each conflicts[item.dir] ?? [] as conflict}<p class="text-sm text-muted">{t('installs.conflictWith', { kind: conflict.kind, name: conflict.with })}</p>{/each}</div>
