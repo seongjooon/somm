@@ -27,3 +27,4 @@ export function createAgents(p: Platform): Record<AgentId, AgentAdapter> {
   }
   return { claude: create('claude'), codex: create('codex') };
 }
+export { readInstallMarker, type InstallMarker } from './marker';
