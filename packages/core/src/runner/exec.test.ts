@@ -50,6 +50,6 @@ test('masks encoded secret forms', () => {
 test('scrubs values structurally without touching property names or markers', () => {
   const s = makeScrub('REDACTED');
   const event = { kind: 'text', text: 'REDACTED', raw: { REDACTED: '[REDACTED]' } } as unknown as import('../types').AgentEvent;
-  expect(s.event(event)).toEqual({ kind: 'text', text: '[REDACTED]', raw: { REDACTED: '[[REDACTED]]' } });
+  expect(s.event(event)).toEqual({ kind: 'text', text: '[REDACTED]', raw: { REDACTED: '[REDACTED]' } });
   expect(makeScrub('short').str('short')).toBe('short');
 });
