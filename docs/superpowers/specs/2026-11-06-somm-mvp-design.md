@@ -209,6 +209,8 @@ PRD 6을 따르고, 차이만 적는다.
 
 ## 10. 리스크
 
+API 키 마스킹은 최선의 노력이며 에이전트가 키를 임의로 변형하면 유출할 수 있으므로 Isolated 모드에서는 예산이 제한된 일회용 API 키를 사용한다.
+
 - **Anthropic 약관.** 출처: https://code.claude.com/docs/en/legal-and-compliance
   - 금지: 서드파티가 사용자 대신 Free·Pro·Max·Ultra 구독 자격으로 요청을 중계하는 것, Claude.ai 자격증명이나 세션 토큰을 수집·저장·중계하는 것.
   - 허용: 최종 사용자가 수정하지 않은 Claude Code 바이너리에 자기 구독으로 로그인해 쓰는 것.

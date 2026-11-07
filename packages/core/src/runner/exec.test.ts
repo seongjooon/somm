@@ -43,3 +43,7 @@ test('makeScrub removes the raw and JSON-escaped key from strings and events', (
   expect(JSON.stringify(s.event(e))).not.toContain('1234567');
   expect(makeScrub().str('x')).toBe('x');
 });
+test('masks encoded secret forms', () => {
+  const scrub = makeScrub('secret+/');
+  for (const value of ['secret%2B%2F', '7365637265742b2f', 'c2VjcmV0Ky8=', 'c2VjcmV0Ky8', 'c2VjcmV0Ky8'.replace('+', '-').replace('/', '_')]) expect(scrub.str(value)).not.toContain(value);
+});
