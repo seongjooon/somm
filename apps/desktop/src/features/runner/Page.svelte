@@ -6,7 +6,7 @@
   import { t } from '../../i18n/t';
   import Button from '../../ui/Button.svelte';
   import Card from '../../ui/Card.svelte';
-  import { changeAuth, resetKey, setApiKey } from './session';
+  import { changeAuth, resetKey, setApiKey, validKey } from './session';
   import type { Service, Skill } from './service';
   import { staticDenial } from './guards';
   import { runnerError } from './errors';
@@ -16,7 +16,7 @@
   let project = $state(''), model = $state(''), task = $state(''), choices: string[] = $state([]), error = $state(''), busy = $state(false), phase = $state('');
   let history: number[] = $state([]);
   let options: RunOptions = $state({ agent: 'claude', auth: 'subscription', runs: 'quick' });
-  let keyPresent = $state(false), events: { arm: string; event: AgentEvent }[] = $state([]);
+  let keyPresent = $state(false), keyTooShort = $state(false), events: { arm: string; event: AgentEvent }[] = $state([]);
   let controller: AbortController | undefined;
   let mounted = true;
   let canaryAlert = $state(false);
@@ -24,7 +24,7 @@
   const preview = import.meta.env.DEV && !isTauri();
   let denial = $derived(skill ? staticDenial(skill) : undefined);
   let estimate = $derived(estimateUsage(options, !choices.includes(task), history));
-  function clearSession() { resetKey(keyInput); keyPresent = false; }
+  function clearSession() { resetKey(keyInput); keyPresent = false; keyTooShort = false; }
   $effect(() => {
     window.addEventListener('beforeunload', clearSession);
     return () => { window.removeEventListener('beforeunload', clearSession); clearSession(); };
@@ -52,8 +52,8 @@
     if (!service || !skill || !valid()) return;
     busy = true; error = ''; controller = new AbortController();
     try { choices = await service.propose({ skill, project, options, model, signal: controller.signal }); }
-    catch (e) { if (!notifyCleanupError(e) && mounted) error = runnerError(e, !!controller?.signal.aborted); }
-    finally { busy = false; clearSession(); }
+    catch (e) { if (!notifyCleanupError(e) && mounted) error = runnerError(e, !!controller?.signal.aborted); clearSession(); }
+    finally { busy = false; }
   }
   async function start() {
     if (!service || !skill || !valid() || !task.trim()) return;
@@ -78,7 +78,7 @@
     {#if preview}<Button variant="secondary" onclick={() => project = 'demo'}>{t('runner.demo')}</Button>{:else}<Button variant="secondary" onclick={chooseProject}>{t('runner.choose')}</Button>{/if}
     <label>{t('runner.agent')} <select bind:value={options.agent}><option value="claude">Claude Code</option><option value="codex">Codex</option></select></label>
     <label>{t('runner.auth')} <select bind:value={options.auth} onchange={(e) => { const mode = e.currentTarget.value as RunOptions['auth']; changeAuth(mode); if (mode !== 'isolated') { keyPresent = false; if (keyInput) keyInput.value = ''; } }}><option value="subscription">{t('runner.subscription')}</option><option value="isolated">{t('runner.isolated')}</option></select></label>
-    {#if options.auth === 'isolated'}<label>API key <input bind:this={keyInput} type="password" autocomplete="off" oninput={(e) => { setApiKey(e.currentTarget.value); keyPresent = !!e.currentTarget.value; }} /></label><p>{t('runner.keyHint')}</p>
+    {#if options.auth === 'isolated'}<label>API key <input bind:this={keyInput} type="password" autocomplete="off" oninput={(e) => { setApiKey(e.currentTarget.value); keyPresent = validKey(e.currentTarget.value); keyTooShort = !!e.currentTarget.value && !keyPresent; }} /></label><p>{t('runner.keyHint')}</p>{#if keyTooShort}<p role="alert">{t('runner.keyShort')}</p>{/if}
       <label>{t('runner.budget')} <input type="number" min="0.01" step="0.01" bind:value={options.budgetUsd} /></label>{/if}
     <label>{t('runner.model')} <input bind:value={model} /></label>
     <label>{t('runner.runs')} <select bind:value={options.runs}><option value="quick">{t('runner.quick')}</option><option value="thorough">{t('runner.thorough')}</option></select></label>
