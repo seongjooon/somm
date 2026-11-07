@@ -13,3 +13,11 @@ it('keeps the key out of saved results and clears it on module reload', async ()
   vi.resetModules();
   expect((await import('./session')).getApiKey()).toBeUndefined();
 });
+it('clears the input and session when a proposal is cancelled', async () => {
+  const session = await import('./session');
+  session.setApiKey('secret');
+  const input = { value: 'secret' };
+  session.resetKey(input);
+  expect(input.value).toBe('');
+  expect(session.getApiKey()).toBeUndefined();
+});
