@@ -1,6 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { availableViews, createSampleSource, dedupe, filterSkills, rank, searchSkills, type Filters, type SkillMeta, type View } from '@somm/core';
+  import { isTauri } from '@tauri-apps/api/core';
+  import { createTauriPlatform } from '../../platform';
+  import { cachedGrades, previewGrades } from './grades';
+  import GradeBadge from '../../ui/GradeBadge.svelte';
+  import { availableViews, createSampleSource, dedupe, filterSkills, rank, searchSkills, type Filters, type Grade, type SkillMeta, type View } from '@somm/core';
   import { navigate } from '../../lib/route';
   import { t } from '../../i18n/t';
   import Card from '../../ui/Card.svelte';
@@ -9,6 +13,7 @@
   import Tabs from '../../ui/Tabs.svelte';
 
   let items: SkillMeta[] = $state([]);
+  let grades: Record<string, Grade> = $state({});
   let loading = $state(true), error = $state(false), query = $state('');
   let view = $state('all-time');
   let category = $state(''), agent = $state(''), source = $state(''), license = $state(''), minGrade = $state('');
@@ -16,11 +21,18 @@
   const today = new Date().toISOString().slice(0, 10);
   let views = $derived(availableViews(items, today));
   let tabs = $derived(views.map(value => ({ value, label: t('store.view.' + value), id: 'tab-' + value, panelId: 'panel-' + value })));
-  let visible = $derived(searchSkills(filterSkills(rank(items, view as View, today), { category, agent, source, license, minGrade } as Filters, {}), query));
+  let visible = $derived(searchSkills(filterSkills(rank(items, view as View, today), { category, agent, source, license, minGrade } as Filters, grades), query));
   const values = (list: (string | undefined)[]) => [...new Set(list.filter((v): v is string => !!v))].sort();
   async function load() {
     loading = true; error = false;
-    try { items = dedupe(await createSampleSource().fetchIndex()); } catch { error = true; }
+    try {
+      items = dedupe(await createSampleSource().fetchIndex());
+      if (import.meta.env.DEV && !isTauri()) grades = { ...previewGrades };
+      else {
+        const platform = await createTauriPlatform();
+        grades = cachedGrades(await platform.db.select<{ skill_id: string; report_json: string }>('SELECT skill_id, report_json FROM scan_cache'));
+      }
+    } catch { error = true; }
     finally { loading = false; }
   }
   onMount(() => { void load(); });
@@ -45,7 +57,7 @@
     </div>
     {#each views as v}<div role="tabpanel" id={'panel-' + v} aria-labelledby={'tab-' + v} hidden={view !== v}>
       {#if v === view}{#if visible.length}<div class="grid">{#each visible as item (item.id)}<Card><button type="button" class="skill" aria-label={t('store.open', { name: item.name })} onclick={() => navigate({ page: 'detail', skillId: item.id })}>
-        <div class="row"><strong>{item.name}</strong><span aria-label={t('store.unknownGrade')}>—</span></div><p>{item.description}</p><div class="badges"><Badge>{item.source}</Badge>{#each item.agents as a}<Badge>{a}</Badge>{/each}</div><div class="stats">{#if item.stars !== undefined}<span>★ {item.stars}</span>{/if}{#if item.installs !== undefined}<span>↓ {item.installs}</span>{/if}</div>
+        <div class="row"><strong>{item.name}</strong>{#if grades[item.id]}<GradeBadge grade={grades[item.id]} label={t('detail.gradeLabel', { grade: grades[item.id] })} />{:else}<span aria-label={t('store.unknownGrade')}>—</span>{/if}</div><p>{item.description}</p><div class="badges"><Badge>{item.source}</Badge>{#each item.agents as a}<Badge>{a}</Badge>{/each}</div><div class="stats">{#if item.stars !== undefined}<span>★ {item.stars}</span>{/if}{#if item.installs !== undefined}<span>↓ {item.installs}</span>{/if}</div>
       </button></Card>{/each}</div>{:else}<p>{t('store.empty')}</p>{/if}{/if}
     </div>{/each}
   {/if}
