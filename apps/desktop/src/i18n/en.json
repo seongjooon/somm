@@ -1,1 +1,1 @@
-{"nav.store": "Store", "nav.detail": "Detail", "nav.runner": "Test", "nav.results": "Results", "nav.installs": "Installed", "x.count": "{n} items"}
+{"nav.store": "Store", "nav.detail": "Detail", "nav.runner": "Test", "nav.results": "Results", "nav.installs": "Installed", "x.count": "{n} items", "language.label": "Language", "startup.loading": "Starting somm…", "startup.error": "Could not start somm. Check the database and restart the app."}
