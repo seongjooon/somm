@@ -123,3 +123,39 @@ test('restores into a missing skills directory without inspecting its parents', 
     expect(await p.fs.readText(`${item.dir}/SKILL.md`)).toBe('old');
   } finally { await cleanup(); }
 });
+
+test.each(['config', 'skills'])('rejects a symlinked project %s directory', async component => {
+  const { p, cleanup } = await setup();
+  try {
+    const project = `${p.home}/프로젝트 space`;
+    const a = createAgents(p).claude;
+    const item = await a.install(skill, 'project', { mode: 'copy', projectDir: project });
+    await a.uninstall(item);
+    const [backup] = await p.db.select<{ id: string }>('SELECT id FROM backups');
+    const path = component === 'config' ? `${project}/.claude` : `${project}/.claude/skills`;
+    await p.fs.remove(path);
+    const outside = `${p.home}/outside`;
+    await p.fs.mkdirp(outside);
+    await symlink(outside, path);
+    await expect(restoreBackup(p, backup.id)).rejects.toThrow(/symlink/i);
+    expect(await p.fs.exists(`${outside}/sample`)).toBe(false);
+  } finally { await cleanup(); }
+});
+
+test('checks project directories without accessing paths above the project', async () => {
+  const { p, cleanup } = await setup();
+  try {
+    const project = `${p.home}/프로젝트 space`;
+    const a = createAgents(p).codex;
+    const item = await a.install(skill, 'project', { mode: 'copy', projectDir: project });
+    await a.uninstall(item);
+    const [backup] = await p.db.select<{ id: string }>('SELECT id FROM backups');
+    const original = p.fs;
+    const allowed = (path: string) => {
+      if (!(path === project || path.startsWith(`${project}/`) || path === `${p.dataDir}/backups` || path.startsWith(`${p.dataDir}/backups/`))) throw new Error(`Out of scope: ${path}`);
+    };
+    p.fs = { ...original, async exists(path) { allowed(path); return original.exists(path); }, async readDir(path) { allowed(path); return original.readDir(path); } };
+    await restoreBackup(p, backup.id);
+    expect(await p.fs.readText(`${item.dir}/SKILL.md`)).toBe('old');
+  } finally { await cleanup(); }
+});
