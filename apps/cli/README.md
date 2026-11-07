@@ -13,9 +13,11 @@ somm search <query> [--agent claude|codex] [--json]
 somm scan <skill-id|path> [--json]
 somm list [--agent claude|codex] [--project <dir>] [--json]
 somm test <skill-id|path> --project <dir> --agent claude|codex [--runs quick|thorough] [--auth subscription|isolated] [--task <text>] [--budget <usd>] [--model <name>] [--yes] [--refresh] [--json]
-somm install <skill-id|path> --agent claude|codex --scope global|project [--project <dir>] [--json]
+somm install <skill-id|path> --agent claude|codex --scope global|project [--project <dir>] [--symlink] [--force] [--yes] [--refresh] [--json]
 somm remove <name> --agent claude|codex --scope global|project [--project <dir>] [--json]
 ```
+
+`install --symlink` requires a local skill directory. `--force` overwrites an existing skill after backup; `--yes` accepts the warning for a skill that needs testing. Use both `--force --yes` for a non-interactive overwrite where applicable. `--refresh` fetches catalog skill files again.
 
 `--task` is required with `--json`; `--yes` skips the confirmation. Exit codes: 0 success, 1 error or incomplete run, 2 blocked or corked. `--json` emits one JSON object with a `somm` field.
 
