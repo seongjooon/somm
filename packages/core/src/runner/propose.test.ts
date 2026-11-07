@@ -50,3 +50,17 @@ test('passes the selected model to the proposal agent', async () => {
   await proposeTasks(e.p, e, { runId: 'proposal', projectDir: root, skill: { name: 'tdd', description: '' }, opts: { agent: 'claude', auth: 'subscription', runs: 'quick' }, model: 'small-model', signal: new AbortController().signal });
   expect(model).toBe('small-model');
 });
+test('isolated proposal requires a key and installation but not subscription login', async () => {
+  const e = await makeEnv({ loggedIn: false, script: async () => ({ lines: [line({ kind: 'text', text: '["one","two","three"]' })], code: 0 }) }); root = e.root;
+  const req = { runId: 'proposal', projectDir: root, skill: { name: 'tdd', description: '' }, opts: { agent: 'claude' as const, auth: 'isolated' as const, runs: 'quick' as const, apiKey: 'fake-key' }, signal: new AbortController().signal };
+  const detect = e.agent.detect; let detection: unknown; e.agent.detect = async options => { detection = options; return detect(options); };
+  expect(await proposeTasks(e.p, e, req)).toEqual(['one', 'two', 'three']);
+  expect(detection).toEqual({ installationOnly: true });
+  e.calls.length = 0;
+  await expect(proposeTasks(e.p, e, { ...req, opts: { ...req.opts, apiKey: '' } })).rejects.toThrow();
+  expect(e.calls).toHaveLength(0);
+  e.agent.detect = async () => ({ installed: false, loggedIn: false });
+  await expect(proposeTasks(e.p, e, req)).rejects.toThrow(); expect(e.calls).toHaveLength(0);
+  e.agent.detect = async () => ({ installed: true, loggedIn: false });
+  await expect(proposeTasks(e.p, e, { ...req, opts: { ...req.opts, auth: 'subscription' } })).rejects.toThrow(); expect(e.calls).toHaveLength(0);
+});

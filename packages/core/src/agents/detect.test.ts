@@ -31,3 +31,16 @@ test('plugin listing supports both CLI response shapes', async () => {
   expect(await fake('claude', { code: 0, stdout: '[{"id":"one"}]', stderr: '' }).a.listPlugins()).toEqual(['one']);
   expect(await fake('codex', { code: 0, stdout: '{"installed":[{"name":"two"}],"available":[{"name":"skip"}]}', stderr: '' }).a.listPlugins()).toEqual(['two']);
 });
+test.each(['claude', 'codex'] as const)('%s installation-only detection avoids all agent processes and retains binary', async agent => {
+  const present = fake(agent, new Error('must not execute'));
+  expect(await present.a.detect({ installationOnly: true })).toEqual({ installed: true, binPath: `/bin/${agent}`, loggedIn: 'unknown' });
+  expect(present.run).not.toHaveBeenCalled();
+  expect(present.a.buildRun({ cwd: '/project', tmpHome: '/tmp/test', prompt: 'test', opts: { agent, auth: 'isolated', runs: 'quick', apiKey: 'fake-key', budgetUsd: 1 } }).bin).toBe(`/bin/${agent}`);
+  const missing = fake(agent, new Error('must not execute'), false);
+  expect((await missing.a.detect({ installationOnly: true })).installed).toBe(false);
+  expect(missing.run).not.toHaveBeenCalled();
+});
+test('installation-only detection propagates binary discovery errors', async () => {
+  const p = { proc: { which: async () => { throw new Error('discovery failed'); } } } as unknown as Platform;
+  await expect(createAgents(p).claude.detect({ installationOnly: true })).rejects.toThrow('discovery failed');
+});

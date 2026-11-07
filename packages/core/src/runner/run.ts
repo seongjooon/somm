@@ -18,6 +18,7 @@ export interface RunResult {
 export interface RunABRequest {
   runId: string; skill: { name: string; files: SkillFile[] }; identity?: { source: string; contentHash: string }; staticGrade: Exclude<Grade, 'F'>; projectDir: string; task: string;
   opts: RunOptions; model?: string; signal: AbortSignal; onEvent: (arm: string, e: AgentEvent) => void;
+  onCanaryHit?: (arm: string) => void;
   timeouts?: Partial<Timeouts>;   // Tests inject tiny values; defaults are DEFAULT_TIMEOUTS.
 }
 
@@ -77,9 +78,9 @@ async function execute(p: Platform, deps: { agent: AgentAdapter; sandbox: Sandbo
   residue = await agent.enumerateSkills(prepared.base);
   if (residue.includes(skill.name)) { warnings.push(...prepared.warnings, 'target-in-residue'); return result(null, []); }
   signal.throwIfAborted();
-  const status = await withTimeout(agent.detect(), timeouts.detect);
+  const status = await withTimeout(agent.detect(req.opts.auth === 'isolated' ? { installationOnly: true } : undefined), timeouts.detect);
   if (status === 'timeout') { warnings.push(...prepared.warnings, 'detect-timeout'); return result(null, []); }
-  if (!status.installed || status.loggedIn === false) { warnings.push(...prepared.warnings, 'auth'); return result(null, []); }
+  if (!status.installed || (req.opts.auth === 'subscription' && status.loggedIn === false) || (req.opts.auth === 'isolated' && !req.opts.apiKey?.trim())) { warnings.push(...prepared.warnings, 'auth'); return result(null, []); }
   signal.throwIfAborted();
 
   await sandbox.prepareDependencies(prepared.base, { signal });
@@ -111,7 +112,7 @@ async function execute(p: Platform, deps: { agent: AgentAdapter; sandbox: Sandbo
         cleanupPaths.push(root);
       }
       const out = await runArm(p, agent, sandbox, { name, dir, tmpHome, task: req.task, opts, model: req.model, signal, scrub, canaries, cleanupPaths,
-        timeouts, onEvent: req.onEvent });
+        timeouts, onEvent: req.onEvent, onCanaryHit: req.onCanaryHit });
       (side === 'a' ? a : b).push(out.metrics);
       (side === 'a' ? hitsA : hitsB).push(...out.metrics.canaryHits);
       for (const w of out.warnings) if (!warnings.includes(w)) warnings.push(w);

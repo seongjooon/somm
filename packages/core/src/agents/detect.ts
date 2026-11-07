@@ -2,10 +2,11 @@ import type { Platform } from '../platform';
 import type { AgentId } from '../types';
 import type { DetectResult } from './types';
 
-export async function detect(p: Platform, id: AgentId): Promise<DetectResult> {
+export async function detect(p: Platform, id: AgentId, options?: { installationOnly?: boolean }): Promise<DetectResult> {
   const binPath = (await p.proc.which([id]))[id];
   if (!binPath) return { installed: false, loggedIn: false };
   const result: DetectResult = { installed: true, binPath, loggedIn: 'unknown' };
+  if (options?.installationOnly) return result;
   try {
     const version = await p.proc.run(binPath, ['--version']);
     if (version.code === 0) result.version = version.stdout.match(/\b\d+\.\d+\.\d+(?:[-+][\w.-]+)?/)?.[0];

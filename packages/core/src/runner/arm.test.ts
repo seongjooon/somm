@@ -47,3 +47,15 @@ test('passes the detected test command to the agent', async () => {
     opts: { agent: 'claude', auth: 'subscription', runs: 'quick' }, scrub: makeScrub(), canaries: [], cleanupPaths: [], onEvent: () => {} });
   expect(command).toEqual(['npm', 'test']);
 });
+test('notifies live on a canary hit without exposing its token', async () => {
+  const token = 'fake-canary-value';
+  const e = await makeEnv({ script: async () => ({ lines: [line({ kind: 'text', text: token }), line({ kind: 'text', text: token })], code: 0 }) }); root = e.root;
+  const dir = `${root}/arm`; await nodeFs.mkdirp(dir);
+  const sequence: string[] = []; const events: unknown[] = [];
+  const out = await runArm(e.p, e.agent, e.sandbox, { name: 'a-0', dir, tmpHome: `${root}/home`, task: 't', signal: new AbortController().signal,
+    opts: { agent: 'claude', auth: 'subscription', runs: 'quick' }, scrub: makeScrub(), canaries: [{ path: '/fake', token }], cleanupPaths: [],
+    onCanaryHit: () => sequence.push('hit'), onEvent: (_arm, event) => { sequence.push('event'); events.push(event); } });
+  expect(sequence).toEqual(['hit', 'event', 'event']);
+  expect(JSON.stringify({ events, out })).not.toContain(token);
+  expect(out.metrics.canaryHits).toEqual(['[CANARY]']);
+});
