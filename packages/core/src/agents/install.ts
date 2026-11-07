@@ -42,7 +42,13 @@ export function installation(p: Platform, id: AgentId) {
       if (scope === 'project' && !projectDir) continue;
       for (const e of await entries(p, skillDir(scope, projectDir))) {
         const dir = join(skillDir(scope, projectDir), e.name);
-        if ((e.isDir || e.isSymlink) && await p.fs.exists(join(dir, 'SKILL.md'))) result.push(await inspect(dir, scope, true));
+        if (!(e.isDir || e.isSymlink)) continue;
+        try {
+          if (!await p.fs.exists(join(dir, 'SKILL.md'))) throw new Error('Missing SKILL.md');
+          result.push(await inspect(dir, scope, true));
+        } catch {
+          result.push({ agent: id, scope, name: e.name, dir, enabled: true, hash: '', managedBySomm: false, isSymlink: e.isSymlink });
+        }
       }
       for (const e of await entries(p, disabledRoot(scope))) {
         const dir = join(disabledRoot(scope), e.name);
