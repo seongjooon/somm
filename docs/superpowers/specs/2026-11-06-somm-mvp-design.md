@@ -209,6 +209,8 @@ PRD 6을 따르고, 차이만 적는다.
 
 ## 10. 리스크
 
+On case-insensitive volumes the fs-plugin deny globs are case-sensitive, so deny coverage for unusual casings relies on the custom-command checks and on the webview rendering skill text as plain text only.
+
 API 키 마스킹은 최선의 노력이며 에이전트가 키를 임의로 변형하면 유출할 수 있으므로 Isolated 모드에서는 예산이 제한된 일회용 API 키를 사용한다. Node 실행에서는 별도 에이전트 이벤트에 나뉜 키 조각을 연결해 마스킹하지 않으며, 데스크톱에서는 Rust 스트림 계층이 이를 처리하지만 CLI에서는 최선의 노력에 그친다.
 
 - **Anthropic 약관.** 출처: https://code.claude.com/docs/en/legal-and-compliance
