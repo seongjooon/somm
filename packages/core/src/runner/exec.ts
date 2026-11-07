@@ -25,6 +25,7 @@ export function makeScrub(key?: string) {
   const str = (s: string) => {
     let out = '';
     for (let i = 0; i < s.length;) {
+      if (s.startsWith('[REDACTED]', i)) { out += '[REDACTED]'; i += 10; continue; }
       const found = needles.find(f => s.startsWith(f, i));
       if (found) { out += '[REDACTED]'; i += found.length; } else { out += s[i++]; }
     }
