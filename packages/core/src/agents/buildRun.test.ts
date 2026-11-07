@@ -46,3 +46,26 @@ test('Claude does not allow test commands with shell metacharacters', () => {
     expect(args[args.indexOf('--allowedTools') + 1]).not.toContain('npm');
   }
 });
+for (const auth of ['subscription', 'isolated'] as const) {
+  test(`Claude ${auth} confines file tools and quotes test paths`, () => {
+    const opts: RunOptions = { agent: 'claude', auth, runs: 'quick', apiKey: 'key', budgetUsd: 1 };
+    const args = createAgents(p).claude.buildRun({ ...req, opts, allowedBash: ['/tmp/프로젝트 dir/.venv/bin/python', '-m', 'pytest'] }).args;
+    const value = (flag: string) => args[args.indexOf(flag) + 1];
+    expect(JSON.parse(value('--settings'))).toEqual({ permissions: { blockReadsOutsideWorkingDirectories: true, blockWritesOutsideWorkingDirectories: true } });
+    const allowed = value('--allowedTools').split(',');
+    const denied = value('--disallowedTools').split(',');
+    expect(allowed).toContain("Bash('/tmp/프로젝트 dir/.venv/bin/python' -m pytest)");
+    expect(allowed.filter(rule => denied.includes(rule))).toEqual([]);
+    for (const path of ['~/.ssh/**', '~/.aws/**', '~/.config/gh/**', '~/.netrc', '~/.claude/**', '~/.codex/**', '~/.agents/**', '**/.env*']) {
+      for (const tool of ['Read', 'Edit']) expect(denied).toContain(`${tool}(${path})`);
+    }
+    expect(args.join(' ')).not.toMatch(/bypassPermissions|dangerously/);
+  });
+}
+test('rejects shell operators in every test command argument', () => {
+  const opts: RunOptions = { agent: 'claude', auth: 'subscription', runs: 'quick' };
+  for (const part of ['x;y', 'x&&y', 'x|y', 'x`y', 'x$(y)', 'x\ny', 'x>y', 'x<y', 'x*y', 'x,y']) {
+    const args = createAgents(p).claude.buildRun({ ...req, opts, allowedBash: ['test-runner', part] }).args;
+    expect(args[args.indexOf('--allowedTools') + 1]).not.toContain('test-runner');
+  }
+});

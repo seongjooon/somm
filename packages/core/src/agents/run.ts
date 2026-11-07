@@ -13,11 +13,18 @@ export function buildRun(p: Platform, id: AgentId, bin: string, req: RunRequest)
   let args: string[];
   if (id === 'claude') {
     args = ['-p', '--output-format', 'stream-json', '--verbose', '--setting-sources', 'project,local', '--strict-mcp-config', '--no-session-persistence'];
-    // Exact Bash rules: https://code.claude.com/docs/en/permissions
+    // Rule syntax and file-tool boundaries: https://code.claude.com/docs/en/permissions
     const allowed = ['Read', 'Glob', 'Grep', 'Edit', 'Write', 'Bash(git status)', 'Bash(git diff)', 'Bash(ls)'];
-    if (req.allowedBash?.length && req.allowedBash.every(part => /^[\w./-]+$/.test(part))) allowed.push(`Bash(${req.allowedBash.join(' ')})`);
-    args.push('--permission-mode', 'acceptEdits', '--allowedTools', allowed.join(','), '--disallowedTools',
-      ['Bash(curl *)', 'Bash(wget *)', 'Bash(rm -rf *)', 'Bash(ssh *)', 'Bash(scp *)', 'Bash(*~/.ssh*)', 'Bash(*.env*)'].join(','));
+    if (req.allowedBash?.length && req.allowedBash.every(part => !/[;&|`$\r\n<>*?\[\](),\\\x00-\x1f\x7f]/.test(part))) {
+      const quote = (part: string) => /^[\w./-]+$/.test(part) ? part : `'${part.replace(/'/g, "'\\''")}'`;
+      allowed.push(`Bash(${req.allowedBash.map(quote).join(' ')})`);
+    }
+    const sensitive = ['~/.ssh/**', '~/.aws/**', '~/.config/gh/**', '~/.netrc', '~/.claude/**', '~/.codex/**', '~/.agents/**', '**/.env*'];
+    // Write(path) does not match; Edit(path) covers Write: https://code.claude.com/docs/en/permissions#read-and-edit
+    const denied = sensitive.flatMap(path => [`Read(${path})`, `Edit(${path})`]);
+    denied.push('Bash(curl *)', 'Bash(wget *)', 'Bash(rm -rf *)', 'Bash(ssh *)', 'Bash(scp *)', 'Bash(*~/.ssh*)', 'Bash(*.env*)');
+    const settings = { permissions: { blockReadsOutsideWorkingDirectories: true, blockWritesOutsideWorkingDirectories: true } };
+    args.push('--settings', JSON.stringify(settings), '--permission-mode', 'acceptEdits', '--allowedTools', allowed.join(','), '--disallowedTools', denied.join(','));
     env.ANTHROPIC_API_KEY = opts.auth === 'isolated' ? opts.apiKey! : null;
     if (opts.auth === 'isolated') args.push('--max-budget-usd', String(opts.budgetUsd));
   } else {
