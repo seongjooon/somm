@@ -152,3 +152,28 @@ mod tests {
         std::fs::remove_dir_all(root).unwrap();
     }
 }
+
+#[derive(Default)]
+pub struct DemoDirs(pub std::sync::Mutex<Vec<std::path::PathBuf>>);
+
+#[tauri::command]
+pub fn copy_demo(app: tauri::AppHandle) -> Result<String, String> {
+    let source = app.path().resolve("demos/ts-mini", tauri::path::BaseDirectory::Resource).map_err(|e| e.to_string())?;
+    let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|e| e.to_string())?.as_nanos();
+    let dest = std::env::temp_dir().join(format!("somm-demo-{}-{stamp}", std::process::id()));
+    fn copy(source: &std::path::Path, dest: &std::path::Path) -> std::io::Result<()> {
+        std::fs::create_dir(dest)?;
+        for entry in std::fs::read_dir(source)? {
+            let entry = entry?;
+            let kind = entry.file_type()?;
+            if kind.is_dir() { copy(&entry.path(), &dest.join(entry.file_name()))?; }
+            else if kind.is_file() { std::fs::copy(entry.path(), dest.join(entry.file_name()))?; }
+            else { return Err(std::io::Error::other("Unsupported demo file")); }
+        }
+        Ok(())
+    }
+    if let Err(error) = copy(&source, &dest) { let _ = std::fs::remove_dir_all(&dest); return Err(error.to_string()); }
+    if let Err(error) = app.fs_scope().allow_directory(&dest, true) { let _ = std::fs::remove_dir_all(&dest); return Err(error.to_string()); }
+    app.state::<DemoDirs>().0.lock().map_err(|e| e.to_string())?.push(dest.clone());
+    Ok(dest.to_string_lossy().into_owned())
+}

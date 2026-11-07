@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { isTauri } from '@tauri-apps/api/core';
+  import { invoke, isTauri } from '@tauri-apps/api/core';
   import { open } from '@tauri-apps/plugin-dialog';
   import { estimateUsage, type AgentEvent, type RunOptions } from '@somm/core';
   import { route, navigate } from '../../lib/route';
@@ -47,6 +47,7 @@
     return () => { active = false; };
   });
   async function chooseProject() { try { const selected = await open({ directory: true, recursive: true }); if (typeof selected === 'string') project = selected; } catch { error = t('runner.actionError'); } }
+  async function chooseDemo() { try { project = preview ? 'demo' : await invoke<string>('copy_demo'); } catch { error = t('runner.actionError'); } }
   function valid() { return !!skill && !denial && !!project && (options.auth !== 'isolated' || (keyPresent && !!options.budgetUsd && options.budgetUsd > 0)); }
   async function propose() {
     if (!service || !skill || !valid()) return;
@@ -75,7 +76,7 @@
   <div class="columns"><div><Card><h2>{skill.meta.name}</h2><p>{skill.meta.description}</p><h3>{t('runner.files')}</h3><ul>{#each skill.files as file}<li>{file.path}</li>{/each}</ul></Card></div>
   <div class="stack"><Card><fieldset disabled={busy}>
     <p>{t('runner.project')}: {project || '—'}</p>
-    {#if preview}<Button variant="secondary" onclick={() => project = 'demo'}>{t('runner.demo')}</Button>{:else}<Button variant="secondary" onclick={chooseProject}>{t('runner.choose')}</Button>{/if}
+    <Button variant="secondary" onclick={chooseDemo}>{t('runner.demo')}</Button>{#if !preview}<Button variant="secondary" onclick={chooseProject}>{t('runner.choose')}</Button>{/if}
     <label>{t('runner.agent')} <select bind:value={options.agent}><option value="claude">Claude Code</option><option value="codex">Codex</option></select></label>
     <label>{t('runner.auth')} <select bind:value={options.auth} onchange={(e) => { const mode = e.currentTarget.value as RunOptions['auth']; changeAuth(mode); if (mode !== 'isolated') { keyPresent = false; if (keyInput) keyInput.value = ''; } }}><option value="subscription">{t('runner.subscription')}</option><option value="isolated">{t('runner.isolated')}</option></select></label>
     {#if options.auth === 'isolated'}<label>API key <input bind:this={keyInput} type="password" autocomplete="off" oninput={(e) => { setApiKey(e.currentTarget.value); keyPresent = validKey(e.currentTarget.value); keyTooShort = !!e.currentTarget.value && !keyPresent; }} /></label><p>{t('runner.keyHint')}</p>{#if keyTooShort}<p role="alert">{t('runner.keyShort')}</p>{/if}
