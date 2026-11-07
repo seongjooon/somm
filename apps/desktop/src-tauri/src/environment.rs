@@ -49,6 +49,19 @@ mod tests {
         for name in ["PATH", "HOME", "USER"] { assert!(!super::sensitive(name)); }
     }
     #[test]
+    fn applies_environment_to_real_child_and_keeps_explicit_override() {
+        let names = ["GITHUB_TOKEN", "AWS_SECRET_ACCESS_KEY", "OPENAI_API_KEY", "SSH_AUTH_SOCK", "ANTHROPIC_API_KEY", "CODEX_API_KEY"];
+        let previous: Vec<_> = names.iter().map(|name| std::env::var_os(name)).collect();
+        for name in names { std::env::set_var(name, "fake-test-value"); }
+        let env = Environment::default();
+        env.vars.set(HashMap::from([("PATH".into(), "/usr/bin:/bin".into()), ("HOME".into(), "/tmp".into())])).unwrap();
+        let mut cmd = Command::new("/usr/bin/env"); env.apply(&mut cmd); cmd.env("CODEX_API_KEY", "explicit-test-key"); cmd.env_remove("ANTHROPIC_API_KEY");
+        let output = String::from_utf8(cmd.output().unwrap().stdout).unwrap();
+        for (name, value) in names.iter().zip(previous) { match value { Some(v) => std::env::set_var(name, v), None => std::env::remove_var(name) } }
+        assert!(output.contains("PATH=/usr/bin:/bin")); assert!(output.contains("HOME=/tmp")); assert!(output.contains("CODEX_API_KEY=explicit-test-key"));
+        for name in ["GITHUB_TOKEN=", "AWS_SECRET_ACCESS_KEY=", "OPENAI_API_KEY=", "SSH_AUTH_SOCK=", "ANTHROPIC_API_KEY="] { assert!(!output.contains(name)); }
+    }
+    #[test]
     fn pwd_resolution_ignores_path_and_runs_physical_directory_check() {
         let root = std::env::temp_dir().join(format!("somm-pwd-{}", std::process::id()));
         std::fs::create_dir_all(&root).unwrap();
@@ -171,6 +184,8 @@ impl Environment {
         cmd.envs(self.vars());
     }
 }
+// Remove inherited secret-bearing names, including SSH_AUTH_SOCK; caller overrides are applied later.
+// HOME, PATH, USER, LOGNAME, LANG, LC_*, TMPDIR, SHELL, TERM, CODEX_HOME and XDG_* do not match.
 fn sensitive(name: &str) -> bool {
     let name = name.to_ascii_uppercase();
     ["KEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD", "CREDENTIAL", "AUTH"].iter().any(|part| name.contains(part))
