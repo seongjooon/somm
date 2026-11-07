@@ -32,8 +32,8 @@ Run tests with no `SOMM_DATA_DIR` set. The real data directory `~/Library/Applic
 
 ## Next, in order
 
-1. User opens the app with `pnpm --filter desktop tauri dev` and runs a Quick test on the bundled demo. Real-subscription use needs user approval; record results in `docs/experiments/`. The T15 plan calls for Claude and Codex runs, shared CLI/GUI history, screenshots and config checks.
-2. Complete spec §13 release checklist: audit and security review, DMG, macOS signing and notarization (Apple Developer account required; `hdiutil` failed in the agent sandbox), recheck OpenAI and Anthropic terms, README principle, public repository/crawler and real index, MIT license, and secure npm name `somm` before `npm publish`.
+1. User opens the app with `pnpm --filter desktop tauri dev` and runs a Quick test on the bundled demo. Real-subscription use needs user approval; record results in `docs/experiments/`. Cheap models via the model field (`claude-haiku-5-5`, `gpt-6-luna`) keep usage small; run Claude and Codex once each., shared CLI/GUI history, screenshots and config checks.
+2. Complete the spec §13 release checklist: Apple Developer account, DMG plus signing and notarization (`hdiutil` failed in the agent sandbox, retry in a normal terminal), recheck the OpenAI terms, secure the npm name `somm` before `npm publish`., public repository/crawler and real index, MIT license, and secure npm name `somm` before `npm publish`.
 3. Post-MVP outlines: T16 Docker Secure sandbox, T17 share card, T18 crawler/public release (plan T16–T18).
 
 ## Known limits and risks
