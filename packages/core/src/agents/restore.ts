@@ -33,6 +33,8 @@ export async function restoreBackup(p: Platform, backupId: string, opts: { overw
   await safeParents(p, target);
   await safeParents(p, source);
   if (!await p.fs.exists(source)) throw new Error('Backup is missing');
+  const sourceEntry = (await p.fs.readDir(parent(source))).find(entry => entry.name === source.split('/').pop());
+  if (sourceEntry?.isSymlink) throw new Error('Symlink backup requires a verified target');
   const sidecar = `${target}.somm-disabled.json`;
   const sourceSidecar = `${source}.somm-disabled.json`;
   const isDisabled = target === disabled;
