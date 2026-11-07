@@ -14,8 +14,8 @@ export function createAgents(p: Platform): Record<AgentId, AgentAdapter> {
     let bin = id as string;
     return {
       id, ...installation(p, id),
-      async detect() {
-        const result = await detect(p, id);
+      async detect(options) {
+        const result = await detect(p, id, options);
         if (result.binPath) bin = result.binPath;
         return result;
       },

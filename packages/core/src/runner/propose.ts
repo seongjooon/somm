@@ -25,11 +25,11 @@ export async function proposeTasks(p: Platform, deps: { agent: AgentAdapter; san
     let residue = await deps.agent.enumerateSkills(prepared.base);
     if (residue.includes(req.skill.name)) throw new TargetInResidueError(req.skill.name, residue);
     req.signal.throwIfAborted();
-    const status = await Promise.race([deps.agent.detect(), new Promise<never>((_, reject) => {
+    const status = await Promise.race([deps.agent.detect(req.opts.auth === 'isolated' ? { installationOnly: true } : undefined), new Promise<never>((_, reject) => {
       const signal = AbortSignal.any([req.signal, AbortSignal.timeout(30_000)]);
       signal.addEventListener('abort', () => reject(req.signal.aborted ? req.signal.reason : new Error('Agent detection timed out')), { once: true });
     })]);
-    if (!status.installed || status.loggedIn === false) throw new Error('Agent unavailable or not logged in. Install the agent and log in, then retry.');
+    if (!status.installed || (req.opts.auth === 'subscription' && status.loggedIn === false) || (req.opts.auth === 'isolated' && !req.opts.apiKey?.trim())) throw new Error('Agent unavailable or not logged in. Install the agent and log in, then retry.');
     req.signal.throwIfAborted();
     await deps.sandbox.prepareDependencies(prepared.base, { signal: req.signal });
     req.signal.throwIfAborted();

@@ -8,7 +8,7 @@ export interface InstallOptions { mode: 'copy' | 'symlink'; projectDir?: string;
 export interface SkillInput { name: string; files: SkillFile[]; source?: string }
 export interface AgentAdapter {
   id: AgentId;
-  detect(): Promise<DetectResult>;
+  detect(options?: { installationOnly?: boolean }): Promise<DetectResult>;
   skillDir(scope: Scope, projectDir?: string): string;
   listInstalled(projectDir?: string): Promise<InstalledSkill[]>;
   install(skill: SkillInput, scope: Scope, opts: InstallOptions): Promise<InstalledSkill>;

@@ -229,3 +229,26 @@ test.each([undefined, 'small-model'])('passes model %s to every arm and verdict'
   expect(requests).toEqual([model, model, model]);
   expect(result.meta.model).toBe(model);
 });
+test('isolated auth uses its key without requiring subscription login, but still requires installation and key', async () => {
+  const isolated = { ...quick, auth: 'isolated' as const, apiKey: 'fake-key' };
+  const e = await setup({ loggedIn: false });
+  const detect = e.agent.detect; let detection: unknown; e.agent.detect = async options => { detection = options; return detect(options); };
+  expect((await runAB(e.p, e, req(e, { opts: isolated }))).warnings).not.toContain('auth');
+  expect(e.calls.length).toBeGreaterThan(0); expect(detection).toEqual({ installationOnly: true });
+  const missing = await makeEnv({ installed: false, loggedIn: false });
+  try { expect((await runAB(missing.p, missing, req(missing, { opts: isolated }))).warnings).toContain('auth'); expect(missing.calls).toHaveLength(0); }
+  finally { await rm(missing.root, { recursive: true, force: true }); }
+  const noKey = await makeEnv({ loggedIn: false });
+  try { expect((await runAB(noKey.p, noKey, req(noKey, { opts: { ...isolated, apiKey: '' } }))).warnings).toContain('auth'); expect(noKey.calls).toHaveLength(0); }
+  finally { await rm(noKey.root, { recursive: true, force: true }); }
+});
+test('redacts isolated key from events and diffs before persistence', async () => {
+  const key = 'fake-secret-key';
+  const e = await setup({ patch: `+${key}`, script: async c => ({ lines: c.cwd.endsWith('base') ? [VERDICT] : [line({ kind: 'text', text: `output ${key}` }), ...okLines()], code: 0 }) });
+  const events: Record<string, import('../types').AgentEvent[]> = {};
+  const result = await runAB(e.p, e, req(e, { opts: { ...quick, auth: 'isolated', apiKey: key }, onEvent: (arm, event) => (events[arm] ??= []).push(event) }));
+  await saveRun(e.p, result, events);
+  const stored = await e.db.select('SELECT metrics_json, events_jsonl FROM run_arms');
+  expect(JSON.stringify({ result, events, stored })).not.toContain(key);
+  expect(result.a[0].diff.patch).toContain('[REDACTED]');
+});
