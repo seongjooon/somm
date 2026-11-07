@@ -1,6 +1,5 @@
 {
   "name": "somm",
-  "private": true,
   "type": "module",
   "bin": {
     "somm": "bin/somm.mjs"
@@ -10,10 +9,16 @@
     "check": "tsc --noEmit",
     "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/cli.js --banner:js=\"import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);\""
   },
-  "dependencies": {
-    "@somm/core": "workspace:*"
-  },
   "engines": {
     "node": "^22.13.0 || >=23.4.0"
+  },
+  "version": "0.1.0",
+  "files": [
+    "bin/somm.mjs",
+    "bin/node-version.mjs",
+    "dist/cli.js"
+  ],
+  "devDependencies": {
+    "@somm/core": "workspace:*"
   }
 }
