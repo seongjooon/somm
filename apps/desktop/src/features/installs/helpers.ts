@@ -11,3 +11,7 @@ export function groupInstalled(items: InstalledSkill[]): Record<AgentId, Record<
 export function updateAvailable(item: { markerHash?: string }, latestHash?: string): boolean {
   return !!item.markerHash && !!latestHash && item.markerHash !== latestHash;
 }
+
+export function conflictLabelKey(count: number): string {
+  return count === 1 ? 'installs.conflict.one' : 'installs.conflict.other';
+}

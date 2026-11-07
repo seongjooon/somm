@@ -18,7 +18,6 @@
   "installs.empty": "설치된 스킬이 없습니다.",
   "installs.enabled": "활성",
   "installs.disabled": "비활성",
-  "installs.conflicts": "충돌 {n}개",
   "installs.conflictWith": "{name} 스킬과 {kind} 충돌",
   "installs.updateAvailable": "업데이트 가능",
   "installs.upToDate": "최신 상태",
@@ -52,5 +51,7 @@
   "installs.confirmTitle": "작업 확인",
   "installs.cancel": "취소",
   "installs.confirm": "확인",
-  "installs.unreadable": "읽을 수 없음"
+  "installs.unreadable": "읽을 수 없음",
+  "installs.conflict.one": "충돌 {n}개",
+  "installs.conflict.other": "충돌 {n}개"
 }

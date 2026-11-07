@@ -18,7 +18,6 @@
   "installs.empty": "No skills installed.",
   "installs.enabled": "Enabled",
   "installs.disabled": "Disabled",
-  "installs.conflicts": "{n} conflicts",
   "installs.conflictWith": "{kind} conflict with {name}",
   "installs.updateAvailable": "Update available",
   "installs.upToDate": "Up to date",
@@ -52,5 +51,7 @@
   "installs.confirmTitle": "Confirm action",
   "installs.cancel": "Cancel",
   "installs.confirm": "Confirm",
-  "installs.unreadable": "Unreadable"
+  "installs.unreadable": "Unreadable",
+  "installs.conflict.one": "{n} conflict",
+  "installs.conflict.other": "{n} conflicts"
 }
