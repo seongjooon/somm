@@ -42,3 +42,14 @@ test('preserves complete and partial output and removes listeners on spawn error
   await expect(tauriProc.run('/usr/bin/node', [])).rejects.toThrow('spawn failed');
   expect(bridge.stop).toHaveBeenCalledTimes(4);
 });
+test('passes sandbox canonicalization through the resolved pwd bridge', async () => {
+  bridge.invoke.mockImplementation(async (command, args) => {
+    if (command === 'resolve_bins') return { pwd: '/bin/pwd' };
+    if (command === 'spawn_agent') {
+      expect(args).toMatchObject({ binName: 'pwd', binPath: '/bin/pwd', args: ['-P'], cwd: '/tmp/example' });
+      bridge.listeners.get('proc://line')!({ payload: { id: args.id, stream: 'stdout', line: '/private/tmp/example', terminated: true } });
+      bridge.listeners.get('proc://exit')!({ payload: { id: args.id, code: 0 } });
+    }
+  });
+  expect((await tauriProc.run('pwd', ['-P'], { cwd: '/tmp/example' })).stdout).toBe('/private/tmp/example\n');
+});

@@ -44,6 +44,21 @@ mod tests {
         std::fs::remove_dir_all(root).unwrap();
     }
     #[test]
+    fn pwd_resolution_ignores_path_and_runs_physical_directory_check() {
+        let root = std::env::temp_dir().join(format!("somm-pwd-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let env = Environment::default();
+        env.vars.set(HashMap::from([("PATH".into(), root.to_string_lossy().into_owned())])).unwrap();
+        let paths = env.resolve(vec!["pwd".into()]);
+        assert_eq!(paths["pwd"].as_deref(), Some("/bin/pwd"));
+        assert!(env.permits("pwd", "/bin/pwd"));
+        assert!(!env.permits("pwd", root.join("pwd").to_str().unwrap()));
+        let output = Command::new(&paths["pwd"].as_ref().unwrap()).arg("-P").current_dir(&root).output().unwrap();
+        assert!(output.status.success());
+        assert_eq!(String::from_utf8(output.stdout).unwrap().trim(), std::fs::canonicalize(&root).unwrap().to_str().unwrap());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
     fn falls_back_in_order_and_filters_app_environment() {
         let mut flags = Vec::new();
         let env = load_env(
@@ -151,6 +166,7 @@ impl Environment {
     }
 }
 fn find_bin(name: &str, path: &str) -> Option<String> {
+    if name == "pwd" { return Some("/bin/pwd".into()); }
     if !crate::process::is_allowed(name, &format!("/bin/{name}")) {
         return None;
     }
