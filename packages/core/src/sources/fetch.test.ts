@@ -208,3 +208,61 @@ test('rejects local repositories by default before invoking git', async () => {
   await expect(fetchSkillFiles(meta('/tmp/untrusted'), p)).rejects.toThrow('Unsupported repository URL');
   expect(p.proc.run).not.toHaveBeenCalled();
 });
+
+test('limits raw file and cumulative bytes, preserving boundary binary data', async () => {
+  const { root, p } = await fixture();
+  const dir = `${root}/limit`;
+  await p.fs.mkdirp(`${dir}/nested`);
+  await p.fs.writeText(`${dir}/SKILL.md`, 'x');
+  const binary = new Uint8Array(1024 * 1024); binary[0] = 255;
+  await p.fs.writeBytes(`${dir}/nested/asset`, binary);
+  expect((await readLocalSkill(dir, p)).files.find(f => f.path === 'nested/asset')?.contents).toEqual(binary);
+  const read = vi.fn(p.fs.readBytes);
+  const tracked = { ...p, fs: { ...p.fs, readBytes: read } };
+  await p.fs.writeBytes(`${dir}/nested/asset`, new Uint8Array(1024 * 1024 + 1));
+  await expect(readLocalSkill(dir, tracked)).rejects.toThrow('file size limit');
+  expect(read.mock.calls.some(([path]) => path.endsWith('/asset'))).toBe(false);
+  await p.fs.writeBytes(`${dir}/nested/asset`, binary);
+  for (let i = 0; i < 9; i++) await p.fs.writeBytes(`${dir}/nested/${i}`, binary);
+  await expect(readLocalSkill(dir, p)).rejects.toThrow('total size limit');
+  await p.fs.writeText(`${dir}/SKILL.md`, '');
+  expect((await readLocalSkill(dir, p)).files).toHaveLength(11);
+});
+
+test('oversized refresh keeps the previously published cache', async () => {
+  const { root, p } = await fixture();
+  const work = `${root}/repo`;
+  await p.fs.mkdirp(work);
+  await p.fs.writeText(`${work}/SKILL.md`, '# original');
+  await git(['init', '-b', 'main', work]);
+  await git(['add', '.'], work);
+  await git(['-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-m', 'initial'], work);
+  const original = await fetchSkillFiles(meta(work, '.'), p, { allowLocal: true });
+  await p.fs.writeBytes(`${work}/large`, new Uint8Array(1024 * 1024 + 1));
+  await git(['add', '.'], work);
+  await git(['-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-m', 'large'], work);
+  await expect(fetchSkillFiles(meta(work, '.'), p, { refresh: true, allowLocal: true })).rejects.toThrow('file size limit');
+  expect(await fetchSkillFiles(meta(work, '.'), p, { allowLocal: true })).toEqual(original);
+  expect((await p.fs.readDir(`${p.dataDir}/cache`)).filter(e => e.isDir)).toHaveLength(1);
+});
+
+test('checks actual bytes when a file grows after its size was read', async () => {
+  const { root, p } = await fixture();
+  await p.fs.writeText(`${root}/SKILL.md`, '# skill');
+  const changed: Platform = { ...p, fs: { ...p.fs, async readBytes() { return new Uint8Array(1024 * 1024 + 1); } } };
+  await expect(readLocalSkill(root, changed)).rejects.toThrow('file size limit');
+});
+
+test('checks actual cumulative bytes when the final file grows after stat', async () => {
+  const { p } = await fixture();
+  const names = ['SKILL.md', ...Array.from({ length: 10 }, (_, i) => `asset${i}`)];
+  const readBytes = vi.fn(async (path: string) => path.endsWith('SKILL.md')
+    ? new TextEncoder().encode('x') : new Uint8Array(1024 * 1024));
+  const changed: Platform = { ...p, fs: { ...p.fs,
+    async readDir() { return names.map(name => ({ name, isDir: false, isSymlink: false })); },
+    async fileSize(path) { return path.endsWith('SKILL.md') ? 1 : path.endsWith('asset9') ? 0 : 1024 * 1024; },
+    readBytes,
+  } };
+  await expect(readLocalSkill('/skill', changed)).rejects.toThrow('total size limit');
+  expect(readBytes).toHaveBeenLastCalledWith('/skill/asset9');
+});

@@ -1,6 +1,7 @@
 import type { SkillFile } from '../types';
 export interface DirEntry { name: string; isDir: boolean; isSymlink: boolean }
 export interface Fs {
+  fileSize(p: string): Promise<number>;
   readBytes(p: string): Promise<Uint8Array>; writeBytes(p: string, bytes: Uint8Array): Promise<void>;
   exists(p: string): Promise<boolean>; readText(p: string): Promise<string>;
   writeText(p: string, s: string): Promise<void>; readDir(p: string): Promise<DirEntry[]>;
