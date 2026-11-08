@@ -1,6 +1,27 @@
 # somm
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/seongjooon/somm/main/docs/brand/github-banner-1280x640.png" alt="somm: Sir Somm tastes every skill first" width="100%">
+</p>
+
 somm is a desktop app and CLI for browsing agent skills, scanning them, comparing runs in a copied project, and installing them for Claude Code or Codex. The catalog currently uses sample data.
+
+Sir Somm, a monocled sommelier, tastes every skill before it reaches your project. Each verdict is one line:
+
+- `// somm: pairs well`: recommended
+- `// somm: needs to breathe`: conditional
+- `// somm: corked`: not recommended or blocked
+
+<table>
+  <tr>
+    <td align="center"><img src="https://raw.githubusercontent.com/seongjooon/somm/main/docs/brand/share-card-pass.png" alt="Passing result card: superpowers, pairs well" width="100%"></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/seongjooon/somm/main/docs/brand/share-card-fail.png" alt="Blocked result card: sketchy-skill, corked" width="100%"></td>
+  </tr>
+</table>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/seongjooon/somm/main/docs/brand/overview.png" alt="Sir Somm in seven poses" width="90%">
+</p>
 
 somm never reads, stores, or relays your login credentials or tokens.
 
