@@ -6,7 +6,7 @@ import { tauriProc } from './proc';
 const tauriFs: Fs = {
   fileSize: async p => (await fs.lstat(p)).size,
   createCanaries: (_dataDir, runId, arm, includeHome) => invoke('sandbox_canaries_create', { runId, arm, includeHome }),
-  removeCanaries: (_dataDir, runId, arm, includeHome) => invoke('sandbox_canaries_remove', { runId, arm, includeHome }),
+  removeCanaries: (_dataDir, runId, arm, canaries) => invoke('sandbox_canaries_remove', { runId, arm, canaries }),
   async snapshotSandboxGitConfig(dataDir, base, runId) {
     if (base !== `${dataDir}/runs/${runId}/base` || !/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(runId)) throw new Error('Invalid sandbox base');
     await invoke('sandbox_git_snapshot', { runId });

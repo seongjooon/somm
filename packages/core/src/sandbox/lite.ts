@@ -157,11 +157,11 @@ export function createLiteSandbox(p: Platform, bins: Record<string, string | nul
       if (rel.length !== 2 || !/^[ab]-[0-9]+$/.test(arm) || (homeDir && homeDir !== `${runs}/${runId}/home-${arm}`)) throw new Error('Invalid sandbox arm');
       return p.fs.createCanaries(p.dataDir, runId, arm, !!homeDir);
     },
-    async removeCanaries(projectDir, includeHome) {
+    async removeCanaries(projectDir, canaries) {
       await owned(projectDir);
       const [runId, arm, ...extra] = projectDir.slice(runs.length + 1).split('/');
       if (extra.length || !/^[ab]-[0-9]+$/.test(arm)) throw new Error('Invalid sandbox arm');
-      await p.fs.removeCanaries(p.dataDir, runId, arm, includeHome);
+      return p.fs.removeCanaries(p.dataDir, runId, arm, canaries);
     },
     async diffStat(armDir) {
       await owned(armDir);

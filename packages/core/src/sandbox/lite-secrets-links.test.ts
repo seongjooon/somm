@@ -182,9 +182,9 @@ test('canary removal refuses a symlink substituted for a canary', async () => {
   await fixture(); const sandbox = createLiteSandbox(p, bins);
   const { base } = await sandbox.prepare(project, 'remove-link');
   const arm = (await sandbox.split(base, ['a-0']))['a-0'];
-  await sandbox.plantCanaries({ projectDir: arm });
+  const canaries = await sandbox.plantCanaries({ projectDir: arm });
   const sentinel = `${root}/sentinel`; await fs.writeText(sentinel, 'preserve');
   await fs.remove(`${arm}/.env`); await fs.symlink(sentinel, `${arm}/.env`);
-  await expect(sandbox.removeCanaries(arm, false)).rejects.toThrow('not a regular file');
+  await expect(sandbox.removeCanaries(arm, canaries)).rejects.toThrow('not a regular file');
   expect(await fs.readText(sentinel)).toBe('preserve');
 });

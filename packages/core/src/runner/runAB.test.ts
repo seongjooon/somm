@@ -267,3 +267,11 @@ test('canary removal failure aborts and is reported', async () => {
   expect(e.calls).toHaveLength(1);
   expect(e.cleaned).toEqual(['run1']);
 });
+
+test('reports skipped canary cleanup without aborting other arms', async () => {
+  const e = await setup();
+  e.sandbox.removeCanaries = async () => ['a-0/.env'];
+  const result = await runAB(e.p, e, req(e));
+  expect(result.warnings).toContain('canary-cleanup-skipped:a-0/.env');
+  expect(e.calls).toHaveLength(3);
+});

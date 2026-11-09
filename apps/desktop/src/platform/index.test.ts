@@ -87,8 +87,8 @@ test('canary commands use identifiers and propagate failures', async () => {
   expect(invokeMock).toHaveBeenLastCalledWith('sandbox_canaries_create', { runId: 'r', arm: 'a-0', includeHome: true });
   invokeMock.mockRejectedValueOnce('Canary collision');
   await expect(p.fs.createCanaries('/tmp/data', 'r', 'a-0', false)).rejects.toBe('Canary collision');
-  await p.fs.removeCanaries('/tmp/data', 'r', 'a-0', true);
-  expect(invokeMock).toHaveBeenLastCalledWith('sandbox_canaries_remove', { runId: 'r', arm: 'a-0', includeHome: true });
+  await p.fs.removeCanaries('/tmp/data', 'r', 'a-0', []);
+  expect(invokeMock).toHaveBeenLastCalledWith('sandbox_canaries_remove', { runId: 'r', arm: 'a-0', canaries: [] });
   invokeMock.mockRejectedValueOnce('cleanup failed');
-  await expect(p.fs.removeCanaries('/tmp/data', 'r', 'a-0', false)).rejects.toBe('cleanup failed');
+  await expect(p.fs.removeCanaries('/tmp/data', 'r', 'a-0', [])).rejects.toBe('cleanup failed');
 });

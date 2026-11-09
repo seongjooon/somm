@@ -2,11 +2,11 @@ import * as fs from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import type { Fs } from '../platform';
-import { nodeCanaries } from './canaries';
+import { nodeCanaries, removeNodeCanaries } from './canaries';
 export const nodeFs: Fs = {
   fileSize: async p => (await fs.lstat(p)).size,
   createCanaries: (dataDir, runId, arm, home) => nodeCanaries(dataDir, runId, arm, home),
-  async removeCanaries(dataDir, runId, arm, home) { await nodeCanaries(dataDir, runId, arm, home, true); },
+  removeCanaries: (dataDir, runId, arm, canaries) => removeNodeCanaries(dataDir, runId, arm, canaries),
   async snapshotSandboxGitConfig(dataDir, base) {
     if (!base.startsWith(`${dataDir}/`) || base.slice(dataDir.length + 1).split('/').some(p => !p || p === '.' || p === '..')) throw new Error('Invalid sandbox base');
     const dirs = [dataDir];

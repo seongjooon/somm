@@ -64,8 +64,8 @@ export async function makeEnv(opts: { script?: Script; loggedIn?: boolean | 'unk
       for (const a of arms) { out[a] = join(base, '..', a); await nodeFs.mkdirp(out[a]); for (const [f, c] of Object.entries(opts.armFiles ?? {})) await nodeFs.writeText(join(out[a], f), c); }
       return out;
     },
-    async plantCanaries({ projectDir }) { return [{ path: join(projectDir, '.env'), token: `somm-canary-${'ab'.repeat(8)}` }]; },
-    async removeCanaries() {},
+    async plantCanaries({ projectDir }) { return [{ path: join(projectDir, '.env'), name: '.env', dev: '1', ino: '1', token: `somm-canary-${'ab'.repeat(8)}` }]; },
+    async removeCanaries() { return []; },
     async diffStat() { if (opts.diffThrows) throw new Error('diff failed'); return { files: 1, added: 2, removed: 1, patch: opts.patch ?? 'PATCH' }; },
     async cleanup(runId) { cleaned.push(runId); if (opts.cleanupThrows) throw new Error('cleanup boom'); },
   };

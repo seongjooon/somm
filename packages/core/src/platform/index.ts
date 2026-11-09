@@ -3,7 +3,7 @@ export interface DirEntry { name: string; isDir: boolean; isSymlink: boolean }
 export interface Fs {
   fileSize(p: string): Promise<number>;
   createCanaries(dataDir: string, runId: string, arm: string, includeHome: boolean): Promise<Canary[]>;
-  removeCanaries(dataDir: string, runId: string, arm: string, includeHome: boolean): Promise<void>;
+  removeCanaries(dataDir: string, runId: string, arm: string, canaries: Canary[]): Promise<string[]>;
   snapshotSandboxGitConfig(dataDir: string, base: string, runId: string): Promise<{ restore(): Promise<void>; dispose(): Promise<void> }>;
   readBytes(p: string): Promise<Uint8Array>; writeBytes(p: string, bytes: Uint8Array): Promise<void>;
   exists(p: string): Promise<boolean>; isSymlink(p: string): Promise<boolean>; readText(p: string): Promise<string>;

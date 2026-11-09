@@ -53,7 +53,7 @@ test('notifies live on a canary hit without exposing its token', async () => {
   const dir = `${root}/arm`; await nodeFs.mkdirp(dir);
   const sequence: string[] = []; const events: unknown[] = [];
   const out = await runArm(e.p, e.agent, e.sandbox, { name: 'a-0', dir, tmpHome: `${root}/home`, task: 't', signal: new AbortController().signal,
-    opts: { agent: 'claude', auth: 'subscription', runs: 'quick' }, scrub: makeScrub(), canaries: [{ path: '/fake', token }], cleanupPaths: [],
+    opts: { agent: 'claude', auth: 'subscription', runs: 'quick' }, scrub: makeScrub(), canaries: [{ path: '/fake', name: '.env', dev: '1', ino: '1', token }], cleanupPaths: [],
     onCanaryHit: () => sequence.push('hit'), onEvent: (_arm, event) => { sequence.push('event'); events.push(event); } });
   expect(sequence).toEqual(['hit', 'event', 'event']);
   expect(JSON.stringify({ events, out })).not.toContain(token);
