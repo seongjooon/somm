@@ -30,3 +30,10 @@ export async function fixture(extra: Record<string, string> = {}) {
   for (const [file, contents] of Object.entries(extra)) await fs.writeText(`${project}/${file}`, contents);
   await git(['init', '-q']); await git(['add', '-A']); await git(['commit', '-qm', 'fixture']);
 }
+
+export async function evilScript(marker: string) {
+  const script = `${root}/evil2.sh`;
+  await fs.writeText(script, `#!/bin/sh\ntouch '${marker}'\ncat\n`);
+  expect((await p.proc.run('chmod', ['+x', script])).code).toBe(0);
+  return script;
+}

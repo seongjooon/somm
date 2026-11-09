@@ -5,12 +5,20 @@ import { createAgents, migrate, type AgentId, type DetectResult, type Db, type F
 import { tauriProc } from './proc';
 const tauriFs: Fs = {
   fileSize: async p => (await fs.lstat(p)).size,
+  createCanaries: (_dataDir, runId, arm, includeHome) => invoke('sandbox_canaries_create', { runId, arm, includeHome }),
+  removeCanaries: (_dataDir, runId, arm, canaries) => invoke('sandbox_canaries_remove', { runId, arm, canaries }),
+  async snapshotSandboxGitConfig(dataDir, base, runId) {
+    if (base !== `${dataDir}/runs/${runId}/base` || !/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(runId)) throw new Error('Invalid sandbox base');
+    await invoke('sandbox_git_snapshot', { runId });
+    return { restore: () => invoke('sandbox_git_restore', { runId }), dispose: () => invoke('sandbox_git_forget', { runId }) };
+  },
   readBytes: p => fs.readFile(p),
   writeBytes: (p, bytes) => fs.writeFile(p, bytes),
   async exists(p) { try { await fs.lstat(p); return true; } catch (error) {
     if (typeof error === 'string' && error.startsWith('failed to get metadata of path: ') && /with error: No such file or directory \(os error 2\)$/.test(error)) return false;
     throw error;
   } },
+  async isSymlink(p) { return (await fs.lstat(p)).isSymlink; },
   readText: p => fs.readTextFile(p),
   writeText: (p, s) => fs.writeTextFile(p, s),
   async readDir(p) { return (await fs.readDir(p)).map(e => ({ name: e.name, isDir: e.isDirectory, isSymlink: e.isSymlink })); },

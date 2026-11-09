@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import type { AgentEvent, Canary } from '../types';
 import { canaryHits } from './canary';
 
-const canaries: Canary[] = [{ path: '/arm/.env', token: 'somm-canary-0123456789abcdef' }];
+const canaries: Canary[] = [{ path: '/arm/.env', name: '.env', dev: '1', ino: '1', token: 'somm-canary-0123456789abcdef' }];
 const tool = (input: string, output?: string): AgentEvent => ({ kind: 'tool', tool: { name: 'Bash', input, output }, raw: {} });
 test('token in tool output hits', () => {
   expect(canaryHits([tool('cat .env', 'KEY=somm-canary-0123456789abcdef')], canaries)).toEqual(['somm-canary-0123456789abcdef']);

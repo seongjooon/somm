@@ -32,7 +32,7 @@ export interface AgentEvent {
   inventory?: Inventory; raw: unknown;
 }
 export interface RunOptions { agent: AgentId; auth: AuthMode; runs: RunsMode; apiKey?: string; budgetUsd?: number }
-export interface Canary { path: string; token: string }
+export interface Canary { path: string; name: string; token: string; dev: string; ino: string }
 export interface DiffStat { files: number; added: number; removed: number; patch: string }
 export interface ArmMetrics {
   ok: boolean; tokensIn: number; tokensOut: number; durationMs: number;

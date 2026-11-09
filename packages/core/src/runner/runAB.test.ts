@@ -252,3 +252,26 @@ test('redacts isolated key from events and diffs before persistence', async () =
   expect(JSON.stringify({ result, events, stored })).not.toContain(key);
   expect(result.a[0].diff.patch).toContain('[REDACTED]');
 });
+
+test('canary creation failure aborts before the agent runs', async () => {
+  const e = await setup();
+  e.sandbox.plantCanaries = async () => { throw new Error('Canary collision'); };
+  await expect(runAB(e.p, e, req(e))).rejects.toThrow('Canary collision');
+  expect(e.calls).toHaveLength(0);
+  expect(e.cleaned).toEqual(['run1']);
+});
+test('canary removal failure aborts and is reported', async () => {
+  const e = await setup();
+  e.sandbox.removeCanaries = async () => { throw new Error('canary cleanup failed'); };
+  await expect(runAB(e.p, e, req(e))).rejects.toThrow('canary cleanup failed');
+  expect(e.calls).toHaveLength(1);
+  expect(e.cleaned).toEqual(['run1']);
+});
+
+test('reports skipped canary cleanup without aborting other arms', async () => {
+  const e = await setup();
+  e.sandbox.removeCanaries = async () => ['a-0/.env'];
+  const result = await runAB(e.p, e, req(e));
+  expect(result.warnings).toContain('canary-cleanup-skipped:a-0/.env');
+  expect(e.calls).toHaveLength(3);
+});

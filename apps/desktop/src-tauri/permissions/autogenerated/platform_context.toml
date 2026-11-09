@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-platform-context"
+description = "Enables the platform_context command without any pre-configured scope."
+commands.allow = ["platform_context"]
+
+[[permission]]
+identifier = "deny-platform-context"
+description = "Denies the platform_context command without any pre-configured scope."
+commands.deny = ["platform_context"]

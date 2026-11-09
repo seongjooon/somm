@@ -16,9 +16,9 @@ test('canaries are unique, limited to disposable directories and never overwrite
   await fixture();
   const sandbox = createLiteSandbox(p, bins);
   const { base } = await sandbox.prepare(project, 'canary');
-  const arms = await sandbox.split(base, ['a', 'b']);
-  const a = await sandbox.plantCanaries({ projectDir: arms.a, homeDir: `${p.dataDir}/runs/canary/home` });
-  const b = await sandbox.plantCanaries({ projectDir: arms.b });
+  const arms = await sandbox.split(base, ['a-0', 'b-0']);
+  const a = await sandbox.plantCanaries({ projectDir: arms['a-0'], homeDir: `${p.dataDir}/runs/canary/home-a-0` });
+  const b = await sandbox.plantCanaries({ projectDir: arms['b-0'] });
   expect(a).toHaveLength(5); expect(b).toHaveLength(2);
   expect(new Set([...a, ...b].map(c => c.token)).size).toBe(7);
   for (const c of [...a, ...b]) {
@@ -26,7 +26,7 @@ test('canaries are unique, limited to disposable directories and never overwrite
     expect(await fs.readText(c.path)).toContain(c.token);
   }
   await expect(sandbox.plantCanaries({ projectDir: project })).rejects.toThrow('outside sandbox');
-  await expect(sandbox.plantCanaries({ projectDir: arms.a })).rejects.toThrow('Canary collision');
+  await expect(sandbox.plantCanaries({ projectDir: arms['a-0'] })).rejects.toThrow('Canary collision');
   expect(await fs.exists(`${project}/.env`)).toBe(false);
 });
 test('rejects dependency links back to the original project and never changes their target', async () => {
@@ -71,18 +71,20 @@ test('preserves usable relative dependency links and valid fixed-path JSON canar
   const { base, deps } = await sandbox.prepare(project, 'relative');
   expect(deps.ok).toBe(true);
   expect(await fs.readText(`${base}/node_modules/x/index.js`)).toBe('usable');
-  const canaries = await sandbox.plantCanaries({ projectDir: base });
+  const arms = await sandbox.split(base, ['a-0']);
+  const canaries = await sandbox.plantCanaries({ projectDir: arms['a-0'] });
   const json = canaries.find(c => c.path.endsWith('.json'))!;
   expect(JSON.parse(await fs.readText(json.path))).toEqual({ token: json.token });
 });
 test('fixed-path canary collision preserves existing data and writes no partial canaries', async () => {
   await fixture(); const sandbox = createLiteSandbox(p, bins);
   const { base } = await sandbox.prepare(project, 'collision');
-  await fs.mkdirp(`${base}/config`);
-  await fs.writeText(`${base}/config/secrets.local.json`, '{"existing":"fixture"}');
-  await expect(sandbox.plantCanaries({ projectDir: base })).rejects.toThrow('Canary collision');
-  expect(await fs.exists(`${base}/.env`)).toBe(false);
-  expect(await fs.readText(`${base}/config/secrets.local.json`)).toBe('{"existing":"fixture"}');
+  const arms = await sandbox.split(base, ['a-0']); const arm = arms['a-0'];
+  await fs.mkdirp(`${arm}/config`);
+  await fs.writeText(`${arm}/config/secrets.local.json`, '{"existing":"fixture"}');
+  await expect(sandbox.plantCanaries({ projectDir: arm })).rejects.toThrow('Canary collision');
+  expect(await fs.exists(`${arm}/.env`)).toBe(false);
+  expect(await fs.readText(`${arm}/config/secrets.local.json`)).toBe('{"existing":"fixture"}');
 });
 test('rejects chained relative links whose dotdot traversal escapes base', async () => {
   await fixture(); await fs.mkdirp(`${project}/node_modules/x`);
@@ -161,3 +163,28 @@ test('rejects a link that continues through an earlier absolute hop', () => link
 test('rejects dependency links using different case', () => linkRejected(real => `${real.toUpperCase()}/main.txt`));
 test('rejects dependency links through the macOS data firmlink', () => linkRejected(real => `/System/Volumes/Data${real}/main.txt`));
 
+
+test('plants canaries when direct filesystem access to secret paths is denied', async () => {
+  await fs.writeText(`${project}/main.txt`, 'source');
+  const restricted = (path: string) => /\/\.env$|\/\.ssh(?:\/|$)|\/\.aws(?:\/|$)/.test(path);
+  const scoped = { ...p, fs: { ...fs,
+    async exists(path: string) { if (restricted(path)) throw new Error('outside filesystem scope'); return fs.exists(path); },
+    async writeText(path: string, text: string) { if (restricted(path)) throw new Error('outside filesystem scope'); return fs.writeText(path, text); },
+  } };
+  const sandbox = createLiteSandbox(scoped, bins);
+  const { base } = await sandbox.preparePreflight!(project, 'canary-scope');
+  const arms = await sandbox.split(base, ['a-0']);
+  const canaries = await sandbox.plantCanaries({ projectDir: arms['a-0'], homeDir: `${p.dataDir}/runs/canary-scope/home-a-0` });
+  expect(canaries).toHaveLength(5);
+  await sandbox.cleanup('canary-scope');
+});
+test('canary removal refuses a symlink substituted for a canary', async () => {
+  await fixture(); const sandbox = createLiteSandbox(p, bins);
+  const { base } = await sandbox.prepare(project, 'remove-link');
+  const arm = (await sandbox.split(base, ['a-0']))['a-0'];
+  const canaries = await sandbox.plantCanaries({ projectDir: arm });
+  const sentinel = `${root}/sentinel`; await fs.writeText(sentinel, 'preserve');
+  await fs.remove(`${arm}/.env`); await fs.symlink(sentinel, `${arm}/.env`);
+  await expect(sandbox.removeCanaries(arm, canaries)).rejects.toThrow('not a regular file');
+  expect(await fs.readText(sentinel)).toBe('preserve');
+});

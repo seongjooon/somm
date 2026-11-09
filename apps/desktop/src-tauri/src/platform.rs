@@ -7,13 +7,15 @@ pub struct Context {
     data_dir: String,
     env: std::collections::HashMap<String, String>,
 }
+pub(crate) fn data_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    let home = app.path().home_dir().map_err(|e| e.to_string())?;
+    Ok(std::env::var("SOMM_DATA_DIR").ok().filter(|s| !s.is_empty())
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| home.join("Library/Application Support/io.github.seongjooon.somm")))
+}
 pub fn context(app: &tauri::AppHandle) -> Result<Context, String> {
     let home = app.path().home_dir().map_err(|e| e.to_string())?;
-    let data = std::env::var("SOMM_DATA_DIR")
-        .ok()
-        .filter(|s| !s.is_empty())
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| home.join("Library/Application Support/io.github.seongjooon.somm"));
+    let data = data_dir(app)?;
     std::fs::create_dir_all(&data).map_err(|e| e.to_string())?;
     app.fs_scope()
         .allow_directory(&data, true)

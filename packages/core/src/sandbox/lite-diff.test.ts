@@ -2,13 +2,7 @@ import { expect, test } from 'vitest';
 import { stat, utimes } from 'node:fs/promises';
 import { nodeFs as fs } from '../node/fs';
 import { createLiteSandbox } from './lite';
-import { root, project, p, bins, git, fixture } from './lite-test-helpers';
-async function evilScript(marker: string) {
-  const script = `${root}/evil2.sh`;
-  await fs.writeText(script, `#!/bin/sh\ntouch '${marker}'\ncat\n`);
-  expect((await p.proc.run('chmod', ['+x', script])).code).toBe(0);
-  return script;
-}
+import { root, project, p, bins, git, fixture, evilScript } from './lite-test-helpers';
 test('baseline includes archived files even when source gitignore would normally hide them', async () => {
   await fixture({ '.gitignore': 'main.txt\n' });
   // fixture() uses a normal add; force-add the intentionally ignored source file.
@@ -91,7 +85,8 @@ test('a poisoned base git config and attributes never execute during diffStat', 
   const { base } = await sandbox.prepare(project, 'poison');
   const arms = await sandbox.split(base, ['a']);
   const marker = `${root}/marker-base`, script = await evilScript(marker);
-  await fs.writeText(`${base}/.git/config`, `[core]\n\tfsmonitor = ${script}\n[filter "x"]\n\tclean = ${script}\n`);
+  await fs.writeText(`${root}/included-config`, `[core]\n\tfsmonitor = ${script}\n`);
+  await fs.writeText(`${base}/.git/config`, `[include]\n\tpath = ${root}/included-config\n[core]\n\tfsmonitor = ${script}\n\thooksPath = ${root}\n[filter "x"]\n\tclean = ${script}\n`);
   await fs.writeText(`${base}/.git/info/attributes`, '* filter=x\n');
   await fs.writeText(`${arms.a}/main.txt`, 'changed\n');
   await sandbox.diffStat(arms.a);

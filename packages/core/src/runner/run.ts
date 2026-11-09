@@ -101,7 +101,7 @@ async function execute(p: Platform, deps: { agent: AgentAdapter; sandbox: Sandbo
       signal.throwIfAborted();
       const name = `${side}-${i}`, dir = dirs[name], tmpHome = `${runDir}/home-${name}`;
       const canaries: Canary[] = await sandbox.plantCanaries({ projectDir: dir, ...(opts.agent === 'codex' ? { homeDir: tmpHome } : {}) });
-      const cleanupPaths = canaries.map(c => c.path).filter(path => path.startsWith(`${dir}/`));
+      const cleanupPaths: string[] = [];
       if (side === 'b') {
         const root = `${agent.skillDir('project', dir)}/${skill.name}`;
         for (const f of skill.files) {

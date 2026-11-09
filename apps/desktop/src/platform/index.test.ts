@@ -5,6 +5,14 @@ const invokeMock = vi.hoisted(() => vi.fn(async (command: string, _args?: unknow
 vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }));
 vi.mock('@tauri-apps/plugin-sql', () => ({ default: { load: async () => ({ execute: async () => {}, select: async () => [{ user_version: 1 }] }) } }));
 import { createTauriPlatform } from './index';
+test('git config commands use only the validated run id and release snapshots', async () => {
+  const p = await createTauriPlatform();
+  const snapshot = await p.fs.snapshotSandboxGitConfig('/tmp/data', '/tmp/data/runs/run-1/base', 'run-1');
+  expect(invokeMock).toHaveBeenLastCalledWith('sandbox_git_snapshot', { runId: 'run-1' });
+  await snapshot.restore(); expect(invokeMock).toHaveBeenLastCalledWith('sandbox_git_restore', { runId: 'run-1' });
+  await snapshot.dispose(); expect(invokeMock).toHaveBeenLastCalledWith('sandbox_git_forget', { runId: 'run-1' });
+  await expect(p.fs.snapshotSandboxGitConfig('/tmp/data', '/outside/base', '../other')).rejects.toThrow('Invalid sandbox base');
+});
 test('exposes filtered environment and treats dangling links as existing', async () => {
   const platform = await createTauriPlatform();
   expect(platform.env.PATH).toBe('/custom/bin');
@@ -12,6 +20,14 @@ test('exposes filtered environment and treats dangling links as existing', async
   expect(await platform.fs.exists('/tmp/data/dangling')).toBe(true);
   bridge.lstat.mockRejectedValueOnce('failed to get metadata of path: /tmp/data/missing with error: No such file or directory (os error 2)');
   expect(await platform.fs.exists('/tmp/data/missing')).toBe(false);
+});
+test('checks symlinks using lstat and propagates errors', async () => {
+  const p = await createTauriPlatform();
+  bridge.lstat.mockResolvedValueOnce({ isSymlink: true }).mockResolvedValueOnce({ isSymlink: false });
+  expect(await p.fs.isSymlink('/tmp/data/link')).toBe(true);
+  expect(await p.fs.isSymlink('/tmp/data/dir')).toBe(false);
+  bridge.lstat.mockRejectedValueOnce('denied');
+  await expect(p.fs.isSymlink('/tmp/data/denied')).rejects.toBe('denied');
 });
 test('readlink delegates to the scoped native command and propagates denials', async () => {
   const p = await createTauriPlatform();
@@ -63,4 +79,16 @@ test('fileSize returns lstat size and propagates errors', async () => {
   const error = new Error('denied');
   bridge.lstat.mockRejectedValueOnce(error);
   await expect(p.fs.fileSize('/outside')).rejects.toBe(error);
+});
+test('canary commands use identifiers and propagate failures', async () => {
+  const p = await createTauriPlatform();
+  invokeMock.mockResolvedValueOnce([{ path: '/tmp/data/runs/r/a-0/.env', token: 'test' }]);
+  expect(await p.fs.createCanaries('/tmp/data', 'r', 'a-0', true)).toHaveLength(1);
+  expect(invokeMock).toHaveBeenLastCalledWith('sandbox_canaries_create', { runId: 'r', arm: 'a-0', includeHome: true });
+  invokeMock.mockRejectedValueOnce('Canary collision');
+  await expect(p.fs.createCanaries('/tmp/data', 'r', 'a-0', false)).rejects.toBe('Canary collision');
+  await p.fs.removeCanaries('/tmp/data', 'r', 'a-0', []);
+  expect(invokeMock).toHaveBeenLastCalledWith('sandbox_canaries_remove', { runId: 'r', arm: 'a-0', canaries: [] });
+  invokeMock.mockRejectedValueOnce('cleanup failed');
+  await expect(p.fs.removeCanaries('/tmp/data', 'r', 'a-0', [])).rejects.toBe('cleanup failed');
 });

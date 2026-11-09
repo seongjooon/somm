@@ -50,6 +50,7 @@ export async function runArm(p: Platform, agent: AgentAdapter, sandbox: Sandbox,
   const durationMs = Date.now() - started;
   const ran = await runTests(p, a.dir, a.signal, a.timeouts?.test ?? TEST_TIMEOUT_MS);
   // Somm-planted files (canaries, injected skill) are not part of the agent's work.
+  const skippedCanaries = a.canaries.length ? await sandbox.removeCanaries(a.dir, a.canaries) : [];
   for (const path of a.cleanupPaths) await p.fs.remove(path);
   const stat = await sandbox.diffStat(a.dir);
   const diff = { ...stat, patch: redactTokens(a.scrub.str(stat.patch)) };
@@ -66,5 +67,5 @@ export async function runArm(p: Platform, agent: AgentAdapter, sandbox: Sandbox,
     canaryHits: canaryHits(inv.events, a.canaries).map(hit => a.canaries.some(c => c.token === hit) ? '[CANARY]' : hit),
     ...(failure === undefined ? {} : { error: redactTokens(a.scrub.str(failure)) }),
   };
-  return { metrics, events: inv.events.map(redactCanaries), auth: inv.auth, budget: inv.budget, warnings: ran.warning ? [ran.warning] : [] };
+  return { metrics, events: inv.events.map(redactCanaries), auth: inv.auth, budget: inv.budget, warnings: [...(ran.warning ? [ran.warning] : []), ...skippedCanaries.map(name => `canary-cleanup-skipped:${name}`)] };
 }
