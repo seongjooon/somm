@@ -53,3 +53,9 @@ Mark each item `[x]` (pass) or `[!]` (fail) and paste any error text under it. D
 - Date / macOS version / app build (`git rev-parse --short HEAD`):
 - Items failed:
 - Anything unexpected:
+
+## Result (2026-11-09, branch `fix-native-demo-preparation`, PR #26)
+- Passed: 1 Startup, 2 Language switch, 3 Store, 4 Detail (xlsx: Test disabled, "Static check only", files/scan/traits load, no scope errors), 5 Test page ①–⑤ (reached via Store → skill → Test), 7 Installed (both agents Ready, global lists, plugins, conflict labels).
+- Not yet confirmed: 6 Results, 8 Data folder side effects.
+- Environment issue found (not a code bug): the app used stale `/usr/local/bin/codex` 0.65.0 (revoked signature, macOS "Malware Blocked") and `/usr/local/bin/claude` (plugin list fails) because `~/.npm-global/bin` was only on PATH in `.zshrc`. Fixed locally by adding it to `~/.zprofile`. Backlog in STATUS.md.
+- Observed: Claude plugins list repeats `superpowers@claude-plugins-official` 7 times (backlog). The top-nav Test page shows only "Choose a skill from the store." when no skill is selected (expected).
