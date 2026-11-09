@@ -52,6 +52,7 @@
   "installs.cancel": "취소",
   "installs.confirm": "확인",
   "installs.unreadable": "읽을 수 없음",
+  "installs.conflictsIncomplete": "일부 활성 스킬을 읽을 수 없어 충돌 검사가 불완전합니다. 다른 스킬에도 감지되지 않은 충돌이 있을 수 있습니다.",
   "installs.conflict.one": "충돌 {n}개",
   "installs.conflict.other": "충돌 {n}개"
 }

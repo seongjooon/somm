@@ -1,5 +1,9 @@
 import { detectConflicts, readLocalSkill, skillText, skillTraits, type Conflict, type InstalledSkill, type Platform } from '@somm/core';
 
+export function hasIncompleteConflicts(items: InstalledSkill[], unreadable: string[], agent: InstalledSkill['agent']): boolean {
+  return items.some(item => item.agent === agent && item.enabled && unreadable.includes(item.dir));
+}
+
 export async function inspectConflicts(p: Platform, items: InstalledSkill[]): Promise<{ conflicts: Record<string, Conflict[]>; unreadable: string[] }> {
   const unreadable: string[] = [];
   const descriptions = await Promise.all(items.map(async item => {

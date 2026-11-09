@@ -10,6 +10,7 @@
   import { t, translate } from '../../i18n/t';
   import { route, navigate } from '../../lib/route';
   import { conflictLabelKey, groupInstalled } from './helpers';
+  import { hasIncompleteConflicts } from './conflicts';
   import { createActionLock } from './action-lock';
   import { createService, type Backup, type Prepared, type Service } from './service';
 
@@ -98,6 +99,7 @@
         <div class="flex flex-wrap items-center justify-between gap-3"><h2 class="text-xl font-semibold">{$translate(`installs.agent.${agent}`)}</h2>
           <Badge>{!detected[agent].installed ? $translate('installs.notInstalled') : detected[agent].loggedIn === false ? $translate('installs.notLoggedIn') : detected[agent].loggedIn === 'unknown' ? $translate('installs.loginUnknown') : $translate('installs.ready')}</Badge>
         </div>
+        {#if hasIncompleteConflicts(items, unreadable, agent)}<p role="status" class="mt-3 text-sm text-muted">{$translate('installs.conflictsIncomplete')}</p>{/if}
         {#each scopes as currentScope}
           <div class="mt-5"><h3 class="font-semibold">{$translate(`installs.scope.${currentScope}`)}</h3>
             {#if currentScope === 'project' && !project}<p class="mt-2 text-sm text-muted">{$translate('installs.selectProject')}</p>

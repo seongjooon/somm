@@ -52,6 +52,7 @@
   "installs.cancel": "Cancel",
   "installs.confirm": "Confirm",
   "installs.unreadable": "Unreadable",
+  "installs.conflictsIncomplete": "Conflict checks are incomplete because some enabled skills could not be read. Other skills may have undetected conflicts.",
   "installs.conflict.one": "{n} conflict",
   "installs.conflict.other": "{n} conflicts"
 }
