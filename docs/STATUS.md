@@ -17,6 +17,7 @@ Implementation T1–T15 is merged and code-complete. The manual Tauri check pass
 - Wave 8: T15 integration and release preparation (#17).
 - After Wave 8: Tauri fs dotfile access and deny list (#19); terms recheck brief, not legal advice (#20, `docs/experiments/2026-11-07-terms-recheck.md`); polish backlog (#21: results number format, sandbox test split, install list noise); README brand images (#22).
 - 2026-11-09: source size cap in `readTree` plus an Installed notice for unreadable skills (#25); native sandbox canary commands, sandbox git config restore, explicit app command manifest (#26). Manual check: `docs/experiments/2026-11-08-tauri-manual-check.md`.
+- 2026-11-09: de-duplicated plugin ids (#28); Installed shows the resolved agent CLI path and generic, path-only CLI errors (#29).
 
 ## Run and verify
 
@@ -45,7 +46,7 @@ Run tests with no `SOMM_DATA_DIR` set. The real data directory `~/Library/Applic
    - Public release timing.
 4. **Post-MVP outlines:** T16 Docker Secure sandbox, T17 share card, T18 crawler/public release (plan T16–T18).
 5. **Follow-up (deferred, decided 2026-11-09):** Node canary creation uses path checks (`lstat` per component, root containment, `O_CREAT|O_EXCL|O_NOFOLLOW`) and accepts a small check-then-use race; the desktop Rust command is handle-based (`openat` + `O_NOFOLLOW`). Later: give Node the same handle-based protection (needs a native module or new dependency, so decide first). Code: `packages/core/src/node/canaries.ts` (#26).
-6. **Backlog from the 2026-11-09 manual check:** (a) the app resolves agent CLIs from the login-shell PATH, so a stale `/usr/local/bin/codex` (revoked signature, blocked by macOS as malware) or `claude` was used while `~/.npm-global/bin` was only in `.zshrc`; show the resolved binary path and a clear error. (b) Installed → Claude plugins lists `superpowers@claude-plugins-official` 7 times; de-duplicate plugin ids.
+6. **Backlog from the 2026-11-09 manual check:** done (#28, #29). PATH resolution itself is unchanged: keep agent CLIs on the login-shell PATH (`~/.zprofile`).
 
 ## Known limits and risks
 
@@ -63,9 +64,8 @@ Run tests with no `SOMM_DATA_DIR` set. The real data directory `~/Library/Applic
 ## Unmerged work in worktrees (do not delete without the user's decision)
 
 - `fix-native-demo-preparation`: merged as #26; the worktree keeps uncommitted temporary run diagnostics (`run_diagnostic`, `diagnosticSetup`), intentionally not merged. Backup: `~/somm-backup-native-demo-202611090958/`.
-- `fix-source-size-limits`: merged as #25; worktree clean.
 - `fix-tauri-cache-hidden`: 13 uncommitted files, a rejected native cache IPC approach (superseded by #19). Kept on the user's decision (2026-11-09).
-- `chore-polish-backlog`, `docs-terms-recheck`: worktrees removed 2026-11-09 (local branches kept).
+- Removed 2026-11-09 (merged, clean; local branches kept): `chore-polish-backlog`, `docs-terms-recheck`, `fix-source-size-limits`, `fix-dedupe-plugins`, `fix-agent-bin-path`.
 
 ## Working agreements
 
