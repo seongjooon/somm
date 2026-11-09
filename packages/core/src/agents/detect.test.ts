@@ -18,8 +18,10 @@ for (const agent of ['claude', 'codex'] as const) {
     const loggedOut = fake(agent, { code: 1, stdout: agent === 'claude' ? '{"loggedIn":false}' : '', stderr: 'Not logged in' });
     expect(await loggedOut.a.detect()).toEqual({ installed: true, binPath: `/bin/${agent}`, version: '2.1.318', loggedIn: false });
     expect(loggedOut.run).toHaveBeenLastCalledWith(`/bin/${agent}`, agent === 'claude' ? ['auth', 'status', '--json'] : ['login', 'status']);
-    expect((await fake(agent, { code: 1, stdout: '', stderr: 'unknown subcommand' }).a.detect()).loggedIn).toBe('unknown');
-    expect((await fake(agent, new Error('spawn failed')).a.detect()).loginError).toBe(`${agent} login check failed (/bin/${agent}): spawn failed`);
+    const unsupported = await fake(agent, { code: 1, stdout: '', stderr: 'unknown subcommand' }).a.detect();
+    expect(unsupported.loggedIn).toBe('unknown');
+    expect(unsupported.loginError).toBeUndefined();
+    expect((await fake(agent, new Error('spawn failed')).a.detect()).loginError).toBe(`${agent} login check failed (/bin/${agent}): could not start`);
     const loggedIn = fake(agent, { code: 0, stdout: agent === 'claude' ? '{"loggedIn":true,"email":"private@example.test","orgName":"Secret Org"}' : '', stderr: '' });
     const result = await loggedIn.a.detect();
     expect(result.loggedIn).toBe(true);
@@ -50,5 +52,18 @@ test('installation-only detection propagates binary discovery errors', async () 
 
 test.each(['claude', 'codex'] as const)('%s plugin errors include the binary path', async agent => {
   await expect(fake(agent, { code: 2, stdout: '', stderr: '' }).a.listPlugins()).rejects.toThrow(`${agent} plugin listing failed (/bin/${agent}): exit code 2`);
-  await expect(fake(agent, new Error('spawn failed')).a.listPlugins()).rejects.toThrow(`${agent} plugin listing failed (/bin/${agent}): spawn failed`);
+  await expect(fake(agent, new Error('spawn failed')).a.listPlugins()).rejects.toThrow(`${agent} plugin listing failed (/bin/${agent}): could not start`);
+});
+
+test('Claude malformed login output stays silent without leaking input', async () => {
+  for (const code of [0, 1]) {
+    const result = await fake('claude', { code, stdout: '{"secret":"sk-test-SECRET', stderr: '' }).a.detect();
+    expect(result.loggedIn).toBe('unknown');
+    expect(result.loginError).toBeUndefined();
+    expect(JSON.stringify(result)).not.toContain('sk-test-SECRET');
+  }
+});
+test.each(['claude', 'codex'] as const)('%s malformed plugin output does not leak input', async agent => {
+  await expect(fake(agent, { code: 0, stdout: '{"secret":"sk-test-SECRET', stderr: '' }).a.listPlugins())
+    .rejects.toThrow(`${agent} plugin listing failed (/bin/${agent}): invalid output`);
 });
