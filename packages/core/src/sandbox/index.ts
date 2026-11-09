@@ -7,6 +7,7 @@ export interface Sandbox {
   prepareDependencies?(base: string, options?: { signal?: AbortSignal; timeoutMs?: number }): Promise<DepsResult>;
   split(base: string, arms: string[]): Promise<Record<string, string>>;
   plantCanaries(t: { projectDir: string; homeDir?: string }): Promise<Canary[]>;
+  removeCanaries(projectDir: string, includeHome: boolean): Promise<void>;
   diffStat(armDir: string): Promise<DiffStat>;
   cleanup(runId: string): Promise<void>;
 }

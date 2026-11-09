@@ -29,3 +29,11 @@ test('readlink returns direct relative target without following the chain', asyn
     await expect(fs.readlink(`${root}/missing`)).rejects.toMatchObject({ code: 'ENOENT' });
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+test('sandbox config snapshot rejects a non-regular config', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'somm-config-'));
+  try {
+    const base = `${root}/runs/a/base`;
+    await fs.mkdirp(`${base}/.git/config`);
+    await expect(fs.snapshotSandboxGitConfig(root, base, 'a')).rejects.toThrow('not a regular file');
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

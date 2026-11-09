@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-sandbox-canaries-remove"
+description = "Enables the sandbox_canaries_remove command without any pre-configured scope."
+commands.allow = ["sandbox_canaries_remove"]
+
+[[permission]]
+identifier = "deny-sandbox-canaries-remove"
+description = "Denies the sandbox_canaries_remove command without any pre-configured scope."
+commands.deny = ["sandbox_canaries_remove"]

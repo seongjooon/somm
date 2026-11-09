@@ -65,6 +65,7 @@ export async function makeEnv(opts: { script?: Script; loggedIn?: boolean | 'unk
       return out;
     },
     async plantCanaries({ projectDir }) { return [{ path: join(projectDir, '.env'), token: `somm-canary-${'ab'.repeat(8)}` }]; },
+    async removeCanaries() {},
     async diffStat() { if (opts.diffThrows) throw new Error('diff failed'); return { files: 1, added: 2, removed: 1, patch: opts.patch ?? 'PATCH' }; },
     async cleanup(runId) { cleaned.push(runId); if (opts.cleanupThrows) throw new Error('cleanup boom'); },
   };

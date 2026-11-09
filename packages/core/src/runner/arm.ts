@@ -50,6 +50,7 @@ export async function runArm(p: Platform, agent: AgentAdapter, sandbox: Sandbox,
   const durationMs = Date.now() - started;
   const ran = await runTests(p, a.dir, a.signal, a.timeouts?.test ?? TEST_TIMEOUT_MS);
   // Somm-planted files (canaries, injected skill) are not part of the agent's work.
+  if (a.canaries.length) await sandbox.removeCanaries(a.dir, a.opts.agent === 'codex');
   for (const path of a.cleanupPaths) await p.fs.remove(path);
   const stat = await sandbox.diffStat(a.dir);
   const diff = { ...stat, patch: redactTokens(a.scrub.str(stat.patch)) };

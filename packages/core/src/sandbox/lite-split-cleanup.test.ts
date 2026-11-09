@@ -28,8 +28,9 @@ test('rejects traversal, duplicate runs, arm collisions, and canary symlink esca
   await expect(sandbox.prepare(project, 'safe')).rejects.toThrow('already exists');
   await expect(sandbox.split(base, ['base'])).rejects.toThrow('arms');
   await expect(sandbox.split(base, ['../escape'])).rejects.toThrow('identifier');
-  await fs.symlink(project, `${base}/config`);
-  await expect(sandbox.plantCanaries({ projectDir: base })).rejects.toThrow('symlink');
+  const arms = await sandbox.split(base, ['a-0']);
+  await fs.symlink(project, `${arms['a-0']}/config`);
+  await expect(sandbox.plantCanaries({ projectDir: arms['a-0'] })).rejects.toThrow('symlink');
   expect(await fs.exists(`${project}/secrets.local.json`)).toBe(false);
 });
 test('falls back to regular copies and exposes the warning even when splitting', async () => {

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-copy-demo"
+description = "Enables the copy_demo command without any pre-configured scope."
+commands.allow = ["copy_demo"]
+
+[[permission]]
+identifier = "deny-copy-demo"
+description = "Denies the copy_demo command without any pre-configured scope."
+commands.deny = ["copy_demo"]

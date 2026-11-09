@@ -5,6 +5,19 @@
   ],
   "permissions": [
     "core:default",
+    "allow-sandbox-canaries-create",
+    "allow-sandbox-canaries-remove",
+    "allow-resolve-bins",
+    "allow-spawn-agent",
+    "allow-kill-agent",
+    "allow-platform-context",
+    "allow-copy-demo",
+    "allow-readlink",
+    "allow-symlink",
+    "allow-sandbox-git-snapshot",
+    "allow-sandbox-git-restore",
+    "allow-sandbox-git-forget",
+
     {
       "identifier": "fs:allow-exists",
       "allow": [

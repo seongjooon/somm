@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-sandbox-git-snapshot"
+description = "Enables the sandbox_git_snapshot command without any pre-configured scope."
+commands.allow = ["sandbox_git_snapshot"]
+
+[[permission]]
+identifier = "deny-sandbox-git-snapshot"
+description = "Denies the sandbox_git_snapshot command without any pre-configured scope."
+commands.deny = ["sandbox_git_snapshot"]

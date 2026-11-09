@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { nodeFs as fs } from '../node/fs';
 import type { Platform, Proc } from '../platform';
 import { createLiteSandbox } from './lite';
-import { root, project, p, bins, git, fixture } from './lite-test-helpers';
+import { root, project, p, bins, git, fixture, evilScript } from './lite-test-helpers';
 test('archives HEAD, strips secrets, warns about limitations, and uses isolated Git identity', async () => {
   await fixture({ '.env': 'fixture-secret', '.env.example': 'PUBLIC=example', '.npmrc': 'fixture-only',
     '.gitmodules': '', '.gitattributes': '*.bin filter=lfs diff=lfs merge=lfs -text' });
@@ -81,4 +81,74 @@ test('inherited GIT_DIR does not redirect sandbox git calls', async () => {
   await createLiteSandbox(spy, bins).prepare(project, 'envs');
   expect(seen.length).toBeGreaterThan(0);
   expect(seen).toContain('null');
+});
+
+test('prepares within the data directory without reading its parent', async () => {
+  await fs.writeText(`${project}/main.txt`, 'source');
+  await fs.mkdirp(p.dataDir);
+  const scoped = { ...p, fs: { ...fs, async readDir(path: string) {
+    if (path === root) throw new Error('outside filesystem scope');
+    return fs.readDir(path);
+  } } };
+  const sandbox = createLiteSandbox(scoped, bins);
+  const { base } = await sandbox.preparePreflight!(project, 'scoped');
+  expect(await fs.readText(`${base}/main.txt`)).toBe('source');
+  await sandbox.cleanup('scoped');
+});
+test('rejects a symlinked data directory', async () => {
+  await fs.mkdirp(`${root}/actual-data`);
+  await fs.symlink(`${root}/actual-data`, p.dataDir);
+  await expect(createLiteSandbox(p, bins).preparePreflight!(project, 'linked-data')).rejects.toThrow('symlink');
+  expect(await fs.exists(`${root}/actual-data/runs`)).toBe(false);
+});
+test('rejects a symlinked runs directory', async () => {
+  await fs.mkdirp(p.dataDir);
+  await fs.mkdirp(`${root}/outside`);
+  await fs.symlink(`${root}/outside`, `${p.dataDir}/runs`);
+  await expect(createLiteSandbox(p, bins).preparePreflight!(project, 'linked-runs')).rejects.toThrow('symlink');
+  expect(await fs.exists(`${root}/outside/linked-runs`)).toBe(false);
+});
+test('prepares when direct filesystem access to git config is denied', async () => {
+  await fs.writeText(`${project}/main.txt`, 'source');
+  const scoped = { ...p, fs: { ...fs,
+    async readText(path: string) { if (path.endsWith('/.git/config')) throw new Error('outside filesystem scope'); return fs.readText(path); },
+    async writeText(path: string, text: string) { if (path.endsWith('/.git/config')) throw new Error('outside filesystem scope'); return fs.writeText(path, text); },
+  } };
+  const sandbox = createLiteSandbox(scoped, bins);
+  const { base } = await sandbox.preparePreflight!(project, 'git-config-scope');
+  await sandbox.prepareDependencies!(base);
+  await sandbox.cleanup('git-config-scope');
+});
+test('does not overwrite a symlink target when restoring sandbox git config', async () => {
+  await fixture();
+  const sandbox = createLiteSandbox(p, bins);
+  const { base } = await sandbox.preparePreflight!(project, 'config-link');
+  const sentinel = `${root}/sentinel`;
+  await fs.writeText(sentinel, 'preserve');
+  await fs.remove(`${base}/.git/config`);
+  await fs.symlink(sentinel, `${base}/.git/config`);
+  await expect(sandbox.prepareDependencies!(base)).rejects.toThrow();
+  expect(await fs.readText(sentinel)).toBe('preserve');
+});
+test('rejects a replaced sandbox git directory before restoring config', async () => {
+  await fixture();
+  const sandbox = createLiteSandbox(p, bins);
+  const { base } = await sandbox.preparePreflight!(project, 'replaced-git');
+  await fs.rename(`${base}/.git`, `${base}/original-git`);
+  await fs.mkdirp(`${base}/.git`);
+  await fs.writeText(`${base}/.git/config`, 'untouched');
+  await expect(sandbox.prepareDependencies!(base)).rejects.toThrow('directory changed');
+  expect(await fs.readText(`${base}/.git/config`)).toBe('untouched');
+});
+test('restores config before dependency commit can run included hooks or fsmonitor', async () => {
+  await fixture();
+  const sandbox = createLiteSandbox(p, bins);
+  const { base } = await sandbox.preparePreflight!(project, 'poison-deps');
+  const marker = `${root}/marker-deps`, script = await evilScript(marker);
+  await fs.mkdirp(`${root}/hooks`);
+  await fs.symlink(script, `${root}/hooks/pre-commit`);
+  await fs.writeText(`${root}/included-config`, `[core]\n\thooksPath = ${root}/hooks\n\tfsmonitor = ${script}\n`);
+  await fs.writeText(`${base}/.git/config`, `[include]\n\tpath = ${root}/included-config\n`);
+  await sandbox.prepareDependencies!(base);
+  expect(await fs.exists(marker)).toBe(false);
 });

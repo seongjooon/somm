@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-readlink"
+description = "Enables the readlink command without any pre-configured scope."
+commands.allow = ["readlink"]
+
+[[permission]]
+identifier = "deny-readlink"
+description = "Denies the readlink command without any pre-configured scope."
+commands.deny = ["readlink"]

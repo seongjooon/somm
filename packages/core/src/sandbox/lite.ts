@@ -1,5 +1,4 @@
 import type { Platform } from '../platform';
-import type { Canary } from '../types';
 import type { Sandbox, SandboxWarning } from './index';
 import { copy, copyProject, excluded, sanitize, warn } from './files';
 import { prepareDeps } from './deps';
@@ -16,7 +15,7 @@ export function createLiteSandbox(p: Platform, bins: Record<string, string | nul
   const active = new Map<string, SandboxWarning[]>();
   const gitBin = bins.git || 'git';
   // nodeProc merges env into process.env, so PATH is inherited.
-  const configs = new Map<string, string>();
+  const configs = new Map<string, { restore(): Promise<void>; dispose(): Promise<void> }>();
   const pending = new Map<string, string>();
   const scrub = Object.fromEntries(['GIT_DIR', 'GIT_WORK_TREE', 'GIT_EXTERNAL_DIFF', 'GIT_ASKPASS', 'GIT_SSH_COMMAND', 'GIT_PAGER'].map(k => [k, null]));
   async function gitRun(cwd: string, args: string[], env: Record<string, string> = {}) {
@@ -36,7 +35,9 @@ export function createLiteSandbox(p: Platform, bins: Record<string, string | nul
     const [id] = path.slice(runs.length + 1).split('/');
     if (!active.has(id)) throw new Error('Unknown sandbox run');
     // Platform dataDir ancestors are trusted (macOS /var itself is a system symlink).
-    let parent = p.dataDir.slice(0, p.dataDir.lastIndexOf('/'));
+    if (!await p.fs.exists(p.dataDir)) return;
+    if (await p.fs.isSymlink(p.dataDir)) throw new Error('Sandbox path contains symlink');
+    let parent = p.dataDir;
     for (const part of path.slice(parent.length + 1).split('/').filter(Boolean)) {
       const entries = await p.fs.readDir(parent || '/');
       const entry = entries.find(e => e.name === part);
@@ -102,7 +103,7 @@ export function createLiteSandbox(p: Platform, bins: Record<string, string | nul
         await git(base, ['add', '-Af', '--', '.',
           ...[...excluded].filter(x => x !== '.git').map(x => `:(glob,exclude)**/${x}/**`)]);
         await git(base, ['commit', '--allow-empty', '-qm', 'baseline']);
-        configs.set(runId, await p.fs.readText(`${base}/.git/config`));
+        configs.set(runId, await p.fs.snapshotSandboxGitConfig(p.dataDir, base, runId));
         return { base, deps, warnings };
       } catch (error) {
         if (created) await p.fs.remove(root);
@@ -123,7 +124,7 @@ export function createLiteSandbox(p: Platform, bins: Record<string, string | nul
       pending.delete(runId);
       const deps = await prepareDeps(p, bins, source, base, active.get(runId)!, options);
       options?.signal?.throwIfAborted();
-      await p.fs.writeText(`${base}/.git/config`, configs.get(runId)!);
+      await configs.get(runId)!.restore();
       await p.fs.remove(`${base}/.git/info/attributes`);
       await p.fs.writeText(`${base}/.git/info/exclude`, [...excluded].filter(x => x !== '.git').join('/\n') + '/\n');
       await git(base, ['add', '-Af', '--', '.', ...[...excluded].filter(x => x !== '.git').map(x => `:(glob,exclude)**/${x}/**`)]);
@@ -151,20 +152,16 @@ export function createLiteSandbox(p: Platform, bins: Record<string, string | nul
     async plantCanaries({ projectDir, homeDir }) {
       await owned(projectDir);
       if (homeDir) await owned(homeDir);
-      let paths = [`${projectDir}/.env`, `${projectDir}/config/secrets.local.json`,
-        ...(homeDir ? [`${homeDir}/.ssh/id_rsa`, `${homeDir}/.aws/credentials`, `${homeDir}/.somm-token`] : [])];
-      for (const path of paths) {
-        await owned(path);
-        if (await p.fs.exists(path)) throw new Error(`Canary collision: ${path}; agent execution must not proceed`);
-      }
-      const canaries: Canary[] = [];
-      for (const path of paths) {
-        const token = 'somm-canary-' + Array.from(crypto.getRandomValues(new Uint8Array(8)), b => b.toString(16).padStart(2, '0')).join('');
-        await p.fs.mkdirp(path.slice(0, path.lastIndexOf('/')));
-        await p.fs.writeText(path, path.endsWith('.json') ? JSON.stringify({ token }) : `SOMM_CANARY=${token}\n`);
-        canaries.push({ path, token });
-      }
-      return canaries;
+      const rel = projectDir.slice(runs.length + 1).split('/');
+      const [runId, arm] = rel;
+      if (rel.length !== 2 || !/^[ab]-[0-9]+$/.test(arm) || (homeDir && homeDir !== `${runs}/${runId}/home-${arm}`)) throw new Error('Invalid sandbox arm');
+      return p.fs.createCanaries(p.dataDir, runId, arm, !!homeDir);
+    },
+    async removeCanaries(projectDir, includeHome) {
+      await owned(projectDir);
+      const [runId, arm, ...extra] = projectDir.slice(runs.length + 1).split('/');
+      if (extra.length || !/^[ab]-[0-9]+$/.test(arm)) throw new Error('Invalid sandbox arm');
+      await p.fs.removeCanaries(p.dataDir, runId, arm, includeHome);
     },
     async diffStat(armDir) {
       await owned(armDir);
@@ -173,7 +170,7 @@ export function createLiteSandbox(p: Platform, bins: Record<string, string | nul
       // Never touch the arm's own .git (agent-controlled): use the base git dir with the arm as work tree and a throwaway index.
       // Accepted limitation: an arm .gitignore can hide its own changes; ignored files are not force-added.
       // The base is unsandboxed too: restore its trusted config and drop attributes before every use.
-      await p.fs.writeText(`${runs}/${runId}/base/.git/config`, configs.get(runId)!);
+      await configs.get(runId)!.restore();
       await p.fs.remove(`${runs}/${runId}/base/.git/info/attributes`);
       const index = `${runs}/${runId}/.index-${arm}-${crypto.randomUUID()}`;
       const g = (args: string[]) => git(armDir, ['--git-dir', `${runs}/${runId}/base/.git`, '--work-tree', armDir, ...args], { GIT_INDEX_FILE: index });
@@ -194,11 +191,11 @@ export function createLiteSandbox(p: Platform, bins: Record<string, string | nul
     async cleanup(runId) {
       const root = `${runs}/${identifier(runId)}`;
       if (!active.has(runId)) return;
-      await owned(root);
-      await p.fs.remove(root);
-      active.delete(runId);
-      configs.delete(runId);
-      pending.delete(runId);
+      try { await owned(root); await p.fs.remove(root); }
+      finally {
+        try { await configs.get(runId)?.dispose(); }
+        finally { active.delete(runId); configs.delete(runId); pending.delete(runId); }
+      }
     },
   };
 }
