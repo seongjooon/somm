@@ -31,6 +31,9 @@ test('plugin listing supports both CLI response shapes', async () => {
   expect(await fake('claude', { code: 0, stdout: '[{"id":"one"}]', stderr: '' }).a.listPlugins()).toEqual(['one']);
   expect(await fake('codex', { code: 0, stdout: '{"installed":[{"name":"two"}],"available":[{"name":"skip"}]}', stderr: '' }).a.listPlugins()).toEqual(['two']);
 });
+test('plugin listing removes duplicates in first-seen order', async () => {
+  expect(await fake('claude', { code: 0, stdout: '[{"id":"one","scope":"user"},{"id":"two"},{"id":"one","scope":"project"}]', stderr: '' }).a.listPlugins()).toEqual(['one', 'two']);
+});
 test.each(['claude', 'codex'] as const)('%s installation-only detection avoids all agent processes and retains binary', async agent => {
   const present = fake(agent, new Error('must not execute'));
   expect(await present.a.detect({ installationOnly: true })).toEqual({ installed: true, binPath: `/bin/${agent}`, loggedIn: 'unknown' });

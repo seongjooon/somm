@@ -33,5 +33,5 @@ export async function listPlugins(p: Platform, id: AgentId): Promise<string[]> {
   const parsed = JSON.parse(result.stdout);
   const installed: unknown = id === 'claude' ? parsed : parsed.installed;
   if (!Array.isArray(installed)) throw new Error('Invalid plugin list');
-  return installed.map(x => x.id ?? x.name).filter((name): name is string => typeof name === 'string');
+  return [...new Set(installed.map(x => x.id ?? x.name).filter((name): name is string => typeof name === 'string'))];
 }
