@@ -21,17 +21,24 @@ export async function detect(p: Platform, id: AgentId, options?: { installationO
     } else if (status.code === 0 || status.code === 1) {
       if (!/unknown|unrecognized|unexpected (?:argument|subcommand)/i.test(status.stderr + status.stdout)) result.loggedIn = status.code === 0;
     }
-  } catch { /* Unsupported commands and spawn failures are unknown, not logged out. */ }
+    if (result.loggedIn === 'unknown') throw new Error('Unable to determine login status');
+  } catch (cause) {
+    result.loginError = `${id} login check failed (${binPath}): ${cause instanceof Error ? cause.message : String(cause)}`;
+  }
   return result;
 }
 
 export async function listPlugins(p: Platform, id: AgentId): Promise<string[]> {
   const bin = (await p.proc.which([id]))[id];
   if (!bin) return [];
-  const result = await p.proc.run(bin, ['plugin', 'list', '--json']);
-  if (result.code !== 0) throw new Error(`${id} plugin listing failed`);
-  const parsed = JSON.parse(result.stdout);
-  const installed: unknown = id === 'claude' ? parsed : parsed.installed;
-  if (!Array.isArray(installed)) throw new Error('Invalid plugin list');
-  return [...new Set(installed.map(x => x.id ?? x.name).filter((name): name is string => typeof name === 'string'))];
+  try {
+    const result = await p.proc.run(bin, ['plugin', 'list', '--json']);
+    if (result.code !== 0) throw new Error(`exit code ${result.code}`);
+    const parsed = JSON.parse(result.stdout);
+    const installed: unknown = id === 'claude' ? parsed : parsed.installed;
+    if (!Array.isArray(installed)) throw new Error('Invalid plugin list');
+    return [...new Set(installed.map(x => x.id ?? x.name).filter((name): name is string => typeof name === 'string'))];
+  } catch (cause) {
+    throw new Error(`${id} plugin listing failed (${bin}): ${cause instanceof Error ? cause.message : String(cause)}`, { cause });
+  }
 }

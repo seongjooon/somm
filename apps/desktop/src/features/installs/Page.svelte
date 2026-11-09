@@ -97,8 +97,10 @@
     {#each agentIds as agent}
       <Card>
         <div class="flex flex-wrap items-center justify-between gap-3"><h2 class="text-xl font-semibold">{$translate(`installs.agent.${agent}`)}</h2>
-          <Badge>{!detected[agent].installed ? $translate('installs.notInstalled') : detected[agent].loggedIn === false ? $translate('installs.notLoggedIn') : detected[agent].loggedIn === 'unknown' ? $translate('installs.loginUnknown') : $translate('installs.ready')}</Badge>
+          <div class="flex flex-wrap items-center gap-2">{#if detected[agent].binPath}<span class="break-all text-xs text-muted">{$translate('installs.binPath', { path: detected[agent].binPath })}</span>{/if}
+          <Badge>{!detected[agent].installed ? $translate('installs.notInstalled') : detected[agent].loggedIn === false ? $translate('installs.notLoggedIn') : detected[agent].loggedIn === 'unknown' ? $translate('installs.loginUnknown') : $translate('installs.ready')}</Badge></div>
         </div>
+        {#if detected[agent].loginError}<p role="alert" class="mt-3 break-all text-sm text-muted">{detected[agent].loginError}</p>{/if}
         {#if hasIncompleteConflicts(items, unreadable, agent)}<p role="status" class="mt-3 text-sm text-muted">{$translate('installs.conflictsIncomplete')}</p>{/if}
         {#each scopes as currentScope}
           <div class="mt-5"><h3 class="font-semibold">{$translate(`installs.scope.${currentScope}`)}</h3>

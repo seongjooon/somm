@@ -11,6 +11,7 @@
   "installs.notInstalled": "설치되지 않음",
   "installs.notLoggedIn": "로그인되지 않음",
   "installs.loginUnknown": "로그인 상태 알 수 없음",
+  "installs.binPath": "CLI 경로: {path}",
   "installs.ready": "준비됨",
   "installs.scope.global": "전역",
   "installs.scope.project": "프로젝트",

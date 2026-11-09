@@ -19,7 +19,7 @@ for (const agent of ['claude', 'codex'] as const) {
     expect(await loggedOut.a.detect()).toEqual({ installed: true, binPath: `/bin/${agent}`, version: '2.1.318', loggedIn: false });
     expect(loggedOut.run).toHaveBeenLastCalledWith(`/bin/${agent}`, agent === 'claude' ? ['auth', 'status', '--json'] : ['login', 'status']);
     expect((await fake(agent, { code: 1, stdout: '', stderr: 'unknown subcommand' }).a.detect()).loggedIn).toBe('unknown');
-    expect((await fake(agent, new Error('spawn failed')).a.detect()).loggedIn).toBe('unknown');
+    expect((await fake(agent, new Error('spawn failed')).a.detect()).loginError).toBe(`${agent} login check failed (/bin/${agent}): spawn failed`);
     const loggedIn = fake(agent, { code: 0, stdout: agent === 'claude' ? '{"loggedIn":true,"email":"private@example.test","orgName":"Secret Org"}' : '', stderr: '' });
     const result = await loggedIn.a.detect();
     expect(result.loggedIn).toBe(true);
@@ -46,4 +46,9 @@ test.each(['claude', 'codex'] as const)('%s installation-only detection avoids a
 test('installation-only detection propagates binary discovery errors', async () => {
   const p = { proc: { which: async () => { throw new Error('discovery failed'); } } } as unknown as Platform;
   await expect(createAgents(p).claude.detect({ installationOnly: true })).rejects.toThrow('discovery failed');
+});
+
+test.each(['claude', 'codex'] as const)('%s plugin errors include the binary path', async agent => {
+  await expect(fake(agent, { code: 2, stdout: '', stderr: '' }).a.listPlugins()).rejects.toThrow(`${agent} plugin listing failed (/bin/${agent}): exit code 2`);
+  await expect(fake(agent, new Error('spawn failed')).a.listPlugins()).rejects.toThrow(`${agent} plugin listing failed (/bin/${agent}): spawn failed`);
 });
