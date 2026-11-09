@@ -1,6 +1,6 @@
 import type { AgentEvent, AgentId, InstalledSkill, RunOptions, Scope, SkillFile } from '../types';
 
-export interface DetectResult { installed: boolean; binPath?: string; version?: string; loggedIn: boolean | 'unknown' }
+export interface DetectResult { installed: boolean; binPath?: string; version?: string; loggedIn: boolean | 'unknown'; loginError?: string }
 // Execute with stdin closed. For isolated Codex, the caller must create env.CODEX_HOME first.
 export interface RunSpec { bin: string; args: string[]; env: Record<string, string | null>; cwd: string }
 export interface RunRequest { cwd: string; prompt: string; opts: RunOptions; tmpHome: string; model?: string; allowedBash?: string[] }

@@ -11,6 +11,7 @@
   "installs.notInstalled": "Not installed",
   "installs.notLoggedIn": "Not logged in",
   "installs.loginUnknown": "Login status unknown",
+  "installs.binPath": "CLI path: {path}",
   "installs.ready": "Ready",
   "installs.scope.global": "Global",
   "installs.scope.project": "Project",
