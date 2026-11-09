@@ -4,6 +4,7 @@ import Database from '@tauri-apps/plugin-sql';
 import { createAgents, migrate, type AgentId, type DetectResult, type Db, type Fs, type Platform } from '@somm/core';
 import { tauriProc } from './proc';
 const tauriFs: Fs = {
+  fileSize: async p => (await fs.lstat(p)).size,
   readBytes: p => fs.readFile(p),
   writeBytes: (p, bytes) => fs.writeFile(p, bytes),
   async exists(p) { try { await fs.lstat(p); return true; } catch (error) {

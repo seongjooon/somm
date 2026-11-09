@@ -1,6 +1,7 @@
 import * as fs from 'node:fs/promises';
 import type { Fs } from '../platform';
 export const nodeFs: Fs = {
+  fileSize: async p => (await fs.lstat(p)).size,
   readBytes: async p => new Uint8Array(await fs.readFile(p)),
   writeBytes: (p, bytes) => fs.writeFile(p, bytes),
   async exists(p) {

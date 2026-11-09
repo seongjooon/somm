@@ -54,3 +54,13 @@ test('byte adapter preserves binary buffers and propagates read/write denial', a
   bridge.writeFile.mockRejectedValueOnce('denied');
   await expect(p.fs.writeBytes('/outside', bytes)).rejects.toBe('denied');
 });
+
+test('fileSize returns lstat size and propagates errors', async () => {
+  const p = await createTauriPlatform();
+  bridge.lstat.mockResolvedValueOnce({ size: 123 });
+  expect(await p.fs.fileSize('/tmp/data/asset')).toBe(123);
+  expect(bridge.lstat).toHaveBeenLastCalledWith('/tmp/data/asset');
+  const error = new Error('denied');
+  bridge.lstat.mockRejectedValueOnce(error);
+  await expect(p.fs.fileSize('/outside')).rejects.toBe(error);
+});

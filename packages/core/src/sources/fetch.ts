@@ -4,14 +4,24 @@ import type { Platform } from '../platform';
 import type { SkillMeta, SkillFile } from '../types';
 
 const join = (...parts: string[]) => parts.join('/').replace(/\/+/g, '/').replace(/\/$/, '') || '/';
-async function readTree(dir: string, p: Platform, prefix = ''): Promise<SkillFile[]> {
+const FILE_LIMIT = 1024 * 1024, TOTAL_LIMIT = 10 * FILE_LIMIT;
+async function readTree(dir: string, p: Platform, prefix = '', total = { bytes: 0 }): Promise<SkillFile[]> {
   const files: SkillFile[] = [];
   for (const entry of (await p.fs.readDir(join(dir, prefix))).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0)) {
     if (entry.isSymlink || entry.name === '.git' || entry.name === '.somm-ready') continue;
     const path = prefix ? `${prefix}/${entry.name}` : entry.name;
-    if (entry.isDir) files.push(...await readTree(dir, p, path));
+    if (entry.isDir) files.push(...await readTree(dir, p, path, total));
     else {
-      const bytes = await p.fs.readBytes(join(dir, path));
+      const file = join(dir, path);
+      const check = (size: number) => {
+        if (size > FILE_LIMIT) throw new Error('Skill file size limit exceeded (1 MiB)');
+        if (total.bytes + size > TOTAL_LIMIT) throw new Error('Skill total size limit exceeded (10 MiB)');
+      };
+      // A file can grow after this check, so readBytes cannot guarantee an allocation cap.
+      check(await p.fs.fileSize(file));
+      const bytes = await p.fs.readBytes(file);
+      check(bytes.byteLength);
+      total.bytes += bytes.byteLength;
       const contents = skillText(bytes) ?? bytes;
       files.push({ path, contents });
     }
