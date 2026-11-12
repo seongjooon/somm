@@ -3,6 +3,7 @@ mod environment;
 mod git_config;
 mod platform;
 mod process;
+mod redact;
 use tauri::Manager;
 pub fn run() {
     tauri::Builder::default()
