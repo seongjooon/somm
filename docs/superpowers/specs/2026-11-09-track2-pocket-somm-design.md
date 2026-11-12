@@ -1,0 +1,88 @@
+# Track 2: Pocket Somm (가칭) 기획안
+
+> 상태: 초안 · 2026-11-09 작성, 2026-11-10 검수 반영 · 기존 MVP(Track 1) 출시 후 착수
+> SNS에서 본 스킬을 폰으로 공유하면 몇 초 안에 somm 기준으로 판정하고, 원하면 PC로 보내 설치까지 잇는다.
+> §10 결정과 PRD 개정 전까지 초안이다. source of truth는 `docs/PRD.md`이며, 이 문서와 다르면 PRD를 따른다.
+
+## 1. 문제
+- 폰에서 SNS로 본 스킬을 PC에서 다시 찾아 설치하는 흐름이 끊겨 있다.
+- 영상에 나온 스킬이 진짜 저장소인지, 사칭인지, 안전한지 바로 알기 어렵다.
+
+## 2. 해결책
+SNS 게시물을 somm으로 공유하면 스킬을 추출하고 **somm 기준(보안 등급, somm 벤치마크)으로 판정**한다. 원하면 PC 대기열로 보내고, PC에서 승인한 뒤 설치한다.
+게시물의 주장(예: "토큰 80% 절감")은 판정하지 않는다.
+
+## 3. 타깃
+- 1차: X, Instagram, TikTok, YouTube에서 AI 코딩 콘텐츠를 보는 Claude Code·Codex 사용자
+- 2차: 스킬을 소개하는 인플루언서
+
+## 4. 핵심 흐름
+```
+공유하기 → ① 추출 → ② 매칭 → ③ 판정 카드 → (선택) ④ PC로 보내기 → ⑤ PC 승인·설치
+```
+
+| 단계 | 내용 |
+|---|---|
+| ① 추출 | 캡션·설명 → 실패 시 이미지 텍스트 인식 → 실패 시 영상(프레임, 음성) 분석. 비싼 방법은 앞 단계 실패 시에만. 입력은 사용자가 공유한 텍스트·스크린샷·녹화가 기본이다. 플랫폼 API로 임의 게시물을 읽는 경로는 X만 가능하고 유료다(§9) |
+| ② 매칭 | 스토어 인덱스와 비교해 후보와 신뢰도 제시. 신뢰도가 낮으면 사용자가 확정 |
+| ③ 판정 카드 | 보안 등급(정적 검사, A~D), somm 벤치마크 수치, Sir Somm 한 줄 판정(`pairs well` / `needs to breathe` / `corked`). 한 줄 판정은 코어 `sommTag(rating, grade)`(`packages/core/src/runner/verdict.ts`)를 그대로 쓰고, rating은 P1 벤치마크 결과에서 가져온다. 벤치마크 결과가 없는 스킬은 CLI `somm scan`과 같은 등급 전용 규칙(A·B → `pairs well`, C·D → `needs to breathe`)을 쓰고 카드에 "벤치마크 데이터 없음"을 표시한다 |
+| ④ 보내기 | QR로 PC와 페어링(계정 없음). 폰은 대기열에 추가만 한다. 대기열 항목은 저장소 URL과 콘텐츠 hash만 담고 코드는 담지 않는다. 저장 위치와 토큰 규칙은 §6 |
+| ⑤ 설치 | 기존 MVP 설치 엔진과 설치 게이트(`installGate`, `packages/core/src/scan/grade.ts`)를 그대로 쓴다. PC가 저장소를 직접 받아 정적 검사를 다시 하고, C·D는 로컬 샌드박스 테스트 뒤에만 설치한다. F는 로컬 샌드박스의 canary 히트에서만 나오며 그때 차단한다. 폰 카드의 등급은 참고용이고 설치 판단은 PC 결과로만 한다 |
+
+## 5. 로드맵
+
+| 단계 | 내용 | 완료 기준 |
+|---|---|---|
+| P0 검증 | 인플루언서 게시물 30~50개 수동 추출 실험 | 캡션만으로 식별되는 비율 측정, 영상 분석 필요 여부 결정 |
+| P1 기반 | 스토어 인덱스(크롤러 T18) + 인기 스킬 정기 벤치마크(반복 실행). 벤치마크는 서버 측 스킬 실행이므로 §10-5 결정이 선행한다 | 상위 100개 스킬에 somm 점수(rating + grade) |
+| P2 엔진·웹 | 서버(추출, 매칭, 판정) + 웹 붙여넣기 페이지 + CLI `somm scan <url>` 입력 확장(게시물 URL → 추출·매칭 → 기존 scan 출력). 새 명령은 만들지 않는다 | URL 하나에 10초 안에 판정 카드 |
+| P3 모바일 | 공유하기 수신 앱(Android 먼저, iOS Share Extension) | 공유 → 판정이 끊김 없이 동작 |
+| P4 멀티모달 | 이미지·영상 분석 경로 | P0 대비 식별률 향상 |
+| P5 PC 연동 | QR 페어링, 대기열, 데스크톱 승인 화면 | 폰에서 보내고 PC에서 설치까지 완료 |
+
+## 6. 구조
+```
+packages/core   기존. scanner, sources, 설치 엔진, verdict 재사용
+apps/server     신규. 추출·매칭·판정 API, 캐시, 페어링·대기열
+apps/mobile     신규. 공유하기 수신, 판정 카드
+apps/desktop    기존 + 페어링·대기열·승인 화면
+```
+- 캐시: 게시물 URL과 저장소 hash 기준. 인기 게시물은 재분석하지 않는다.
+- 판정 원칙: somm 데이터(정적 검사, 벤치마크) 안에서만 말한다. 데이터가 없으면 "데이터 없음"으로 표시한다.
+- 페어링과 대기열(§8 "원격 설치 공격" 대응의 전제):
+  - 전송은 서버 경유. 폰과 PC가 같은 네트워크에 있다고 가정하지 않는다.
+  - PC가 1회용 페어링 코드를 만들어 QR로 보여준다. 코드는 5분 안에 한 번만 쓸 수 있다. 교환이 끝나면 폰과 PC가 각각 기기 키를 받고, 이후 요청은 기기 키로만 인증한다. QR 자체는 인증 수단이 아니다.
+  - 기기 키는 90일 만료. PC 승인 화면에서 기기를 즉시 해제할 수 있고, 해제하면 그 기기의 대기열 항목도 지운다.
+  - 대기열 항목에는 발신 기기 이름과 시각을 붙여 PC 승인 화면에 그대로 보여준다. 모르는 기기 이름이면 승인하지 않도록 안내한다.
+  - 서버는 대기열 항목(URL, hash, 기기, 시각)만 저장하고 설치 권한은 갖지 않는다. 승인과 설치는 PC에서만 일어난다.
+
+## 7. 성공 지표
+- 공유 → 스킬 식별 성공률
+- 판정 → PC로 보내기 전환율 → 실제 설치율
+- 판정 카드 공유 수
+- 캐시 적중률
+
+## 8. 위험과 대응
+| 위험 | 대응 |
+|---|---|
+| SNS 미디어 수집 약관 | 서버 직접 수집 최소화, 사용자가 공유한 스크린샷·녹화 우선. IG·TikTok 공식 API는 타인의 공개 게시물 읽기를 거의 허용하지 않으므로(§9) 서버 수집에 기대지 않는다. 출시 전 플랫폼 약관 검토 |
+| 서버·LLM 비용 | 캐시, 단계적 추출, 일일 사용 한도 |
+| 원격 설치 공격 | 폰은 대기열 추가만, 설치는 PC 승인으로만. 1회용 페어링 코드, 기기 키 만료·해제, 항목별 발신 기기 표시(§6) |
+| 판정 환각 | somm 데이터 근거로만 판정, 수치에 출처 표시. 벤치마크 없는 스킬은 등급 전용 태그와 "벤치마크 데이터 없음"을 함께 표시(§4 ③) |
+| 수요 미검증 | P0와 P2 반응을 보고 P3 투자 결정 |
+
+## 9. 사실 확인 메모 (2026-11-08 조사, 2026-11-10 공식 문서로 재확인)
+- iOS는 PWA의 Web Share Target을 지원하지 않는다. 네이티브 Share Extension 필요. Android Chrome은 지원. ([WebKit bug 194593](https://bugs.webkit.org/show_bug.cgi?id=194593))
+- X API: 종량제(pay-per-usage)만 있고 구독·무료 티어는 없다. 게시물 읽기는 반환된 Post 1건당 $0.005, 월 300만 Post 읽기 상한. ([X API pricing](https://docs.x.com/x-api/getting-started/pricing))
+- Instagram Platform API: 권한은 "그 권한을 허용한 앱 사용자가 만든 데이터"에만 미친다. 타인의 공개 콘텐츠는 해시태그 검색 등으로 제한적이다. 앱 사용자가 아닌 계정을 다루려면 Advanced Access와 Meta App Review가 필요하다. 요금 항목은 문서에 없다. ([Instagram Platform overview](https://developers.facebook.com/documentation/instagram-platform/overview), [App Review](https://developers.facebook.com/documentation/instagram-platform/app-review))
+- TikTok Display API: 사용자가 인증한 범위(`user.info.basic`, `video.list`)의 프로필·영상 메타데이터를 읽는다. 임의 공개 영상을 읽을 수 있다는 문구는 없다. 앱 심사는 수 일~2주가 걸리고, iOS 앱은 App Store에 게시된 상태여야 한다. 요금 항목은 문서에 없다. ([Display API overview](https://developers.tiktok.com/docs/en/display-api-overview), [App Review Guidelines](https://developers.tiktok.com/docs/en/app-review-guidelines))
+- 따라서 ① 추출은 사용자가 공유한 텍스트·스크린샷·녹화에 의존하고, 플랫폼 API는 보조 경로로만 본다.
+- SNS에서 스킬을 접한다는 근거는 찾지 못했다. P0로 검증한다.
+
+## 10. 착수 전 결정
+1. 서버 도입("서버 비용은 0원이다" 원칙 변경, `docs/PRD.md` 106행)과 월 예산
+2. 모바일 스택: Tauri 2 모바일 / React Native / Swift. Share Extension 지원 여부 먼저 확인
+3. 이름 "Pocket Somm" 확정 여부
+4. PRD의 MVP 제외 항목(계정, 클라우드 샌드박스, `docs/PRD.md` 47행) 조정. Track 2는 계정 없이 QR 페어링
+5. 서버 측 스킬 실행(클라우드 샌드박스) 허용 여부. P1 정기 벤치마크가 여기에 걸린다. 대안: PRD의 크롤러처럼 GitHub Actions에서 실행(서버 비용 0원, LLM 비용은 별도)
+6. PRD 개정 절차: 1·4·5가 결정되면 PRD에 Track 2 절을 추가하고 제외 목록을 고친다. 개정 전에는 이 문서를 근거로 구현하지 않는다
