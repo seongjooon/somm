@@ -47,6 +47,7 @@ Run tests with no `SOMM_DATA_DIR` set. The real data directory `~/Library/Applic
 4. **Post-MVP outlines:** T16 Docker Secure sandbox, T17 share card, T18 crawler/public release (plan T16–T18).
 5. **Follow-up (deferred, decided 2026-11-09):** Node canary creation uses path checks (`lstat` per component, root containment, `O_CREAT|O_EXCL|O_NOFOLLOW`) and accepts a small check-then-use race; the desktop Rust command is handle-based (`openat` + `O_NOFOLLOW`). Later: give Node the same handle-based protection (needs a native module or new dependency, so decide first). Code: `packages/core/src/node/canaries.ts` (#26).
 6. **Backlog from the 2026-11-09 manual check:** done (#28, #29). PATH resolution itself is unchanged: keep agent CLIs on the login-shell PATH (`~/.zprofile`).
+7. **Track 2 (after MVP release):** Pocket Somm, share an SNS post from a phone to get a somm verdict, then optionally queue it for approval and install on the PC. Draft: `docs/superpowers/specs/2026-11-09-track2-pocket-somm-design.md`.
 
 ## Known limits and risks
 
