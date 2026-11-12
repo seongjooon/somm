@@ -5,3 +5,4 @@ dist
 apps/desktop/src-tauri/gen/
 __pycache__/
 *.pyc
+graphify-out/
