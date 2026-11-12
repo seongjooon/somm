@@ -1,6 +1,6 @@
 # somm status
 
-_Updated 2026-11-09. Plan: `docs/superpowers/plans/2026-11-06-somm-mvp.md`; spec: `docs/superpowers/specs/2026-11-06-somm-mvp-design.md`._
+_Updated 2026-11-12. Plan: `docs/superpowers/plans/2026-11-06-somm-mvp.md`; spec: `docs/superpowers/specs/2026-11-06-somm-mvp-design.md`._
 
 Implementation T1–T15 is merged and code-complete. The manual Tauri check passed on 2026-11-09 (#26 branch). Remaining work needs the user: the real-subscription GUI smoke and the release decisions below.
 
@@ -37,17 +37,17 @@ Run tests with no `SOMM_DATA_DIR` set. The real data directory `~/Library/Applic
 
 ## Next, in order
 
-1. **Manual Tauri check:** passed 2026-11-09 except item 8 (data folder side effects), still to confirm.
-2. **Real-subscription GUI smoke (needs user approval):** the demo plus a sample skill, Quick, once for Claude and once for Codex, using cheap models (`claude-haiku-5-5`, `gpt-6-luna`). It uses subscription quota. Record results in `docs/experiments/`.
-3. **Release decisions (spec §13, user):**
-   - Apple Developer account, DMG, signing and notarization. `hdiutil` failed in the agent sandbox; retry in a normal terminal.
-   - npm name `somm`: returned 404 on 2026-11-07. Re-check right before any `npm publish`. Publishing is public and not reversible; decide first.
-   - Subscription automated use is a grey area for both vendors (`docs/experiments/2026-11-07-terms-recheck.md`). Consider legal advice before public release.
-   - Public release timing.
+1. **Manual Tauri check:** passed 2026-11-09. Item 8 (data folder side effects): tests leave the data folder unchanged (checked 2026-11-12); the GUI part is folded into the GUI smoke below.
+2. **Real-subscription GUI smoke (approved 2026-11-12):** the user runs `docs/experiments/2026-11-12-gui-smoke.md` in their own terminal and records results there.
+3. **Release (decided 2026-11-12):**
+   - Apple Developer account: available. Steps: `docs/experiments/2026-11-12-macos-signing.md`. Not run yet.
+   - Legal review: planned. Questions: `docs/experiments/2026-11-12-legal-questions.md`.
+   - npm name `somm`: still 404 on 2026-11-12. Re-check right before any `npm publish`; publishing is public and not reversible.
+   - Public release timing: open.
 4. **Post-MVP outlines:** T16 Docker Secure sandbox, T17 share card, T18 crawler/public release (plan T16–T18).
 5. **Follow-up (deferred, decided 2026-11-09):** Node canary creation uses path checks (`lstat` per component, root containment, `O_CREAT|O_EXCL|O_NOFOLLOW`) and accepts a small check-then-use race; the desktop Rust command is handle-based (`openat` + `O_NOFOLLOW`). Later: give Node the same handle-based protection (needs a native module or new dependency, so decide first). Code: `packages/core/src/node/canaries.ts` (#26).
 6. **Backlog from the 2026-11-09 manual check:** done (#28, #29). PATH resolution itself is unchanged: keep agent CLIs on the login-shell PATH (`~/.zprofile`).
-7. **Track 2 (after MVP release):** Pocket Somm, share an SNS post from a phone to get a somm verdict, then optionally queue it for approval and install on the PC. Draft: `docs/superpowers/specs/2026-11-09-track2-pocket-somm-design.md`.
+7. **Track 2 (after MVP release):** Pocket Somm. Decided 2026-11-12: no server, benchmarks in GitHub Actions (spec §11); server-based parts need redesign. Draft: `docs/superpowers/specs/2026-11-09-track2-pocket-somm-design.md`.
 
 ## Known limits and risks
 
@@ -62,11 +62,9 @@ Run tests with no `SOMM_DATA_DIR` set. The real data directory `~/Library/Applic
 - Canary removal (#26, accepted 2026-11-09): `sandbox_canaries_remove` trusts the (dev, ino, token) records the app passes in, so a compromised app frontend could delete a matching file under the canary paths; and Rust has a small window between `fstatat` and `unlinkat`. Both only affect same-named files inside the sandbox copy; cleanup runs after the agent finishes.
 - Real smoke has not covered deny-list/outside-directory enforcement, Thorough or Isolated, a real canary hit, or SIGINT.
 
-## Unmerged work in worktrees (do not delete without the user's decision)
+## Worktrees
 
-- `fix-native-demo-preparation`: merged as #26; the worktree keeps uncommitted temporary run diagnostics (`run_diagnostic`, `diagnosticSetup`), intentionally not merged. Backup: `~/somm-backup-native-demo-202611090958/`.
-- `fix-tauri-cache-hidden`: 13 uncommitted files, a rejected native cache IPC approach (superseded by #19). Kept on the user's decision (2026-11-09).
-- Removed 2026-11-09 (merged, clean; local branches kept): `chore-polish-backlog`, `docs-terms-recheck`, `fix-source-size-limits`, `fix-dedupe-plugins`, `fix-agent-bin-path`.
+None besides `main`. `fix-native-demo-preparation` and `fix-tauri-cache-hidden` were deleted on 2026-11-12 by the user's decision (no unmerged commits; diagnostics backup kept at `~/somm-backup-native-demo-202611090958/`).
 
 ## Working agreements
 
