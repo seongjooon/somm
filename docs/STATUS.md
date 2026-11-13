@@ -1,6 +1,6 @@
 # somm status
 
-_Updated 2026-11-12. Plan: `docs/superpowers/plans/2026-11-06-somm-mvp.md`; spec: `docs/superpowers/specs/2026-11-06-somm-mvp-design.md`._
+_Updated 2026-11-13. Plan: `docs/superpowers/plans/2026-11-06-somm-mvp.md`; spec: `docs/superpowers/specs/2026-11-06-somm-mvp-design.md`._
 
 Implementation T1–T15 is merged and code-complete. The manual Tauri check passed on 2026-11-09 (#26 branch). Remaining work needs the user: the real-subscription GUI smoke and the release decisions below.
 
@@ -37,8 +37,8 @@ Run tests with no `SOMM_DATA_DIR` set. The real data directory `~/Library/Applic
 
 ## Next, in order
 
-1. **Manual Tauri check:** passed 2026-11-09. Item 8 (data folder side effects): tests leave the data folder unchanged (checked 2026-11-12); the GUI part is folded into the GUI smoke below.
-2. **Real-subscription GUI smoke (approved 2026-11-12):** the user runs `docs/experiments/2026-11-12-gui-smoke.md` in their own terminal and records results there.
+1. **Manual Tauri check:** passed, including item 8 (closed by the GUI smoke on 2026-11-13).
+2. **Real-subscription GUI smoke:** passed 2026-11-13 for Claude and Codex after two fixes (#34 task proposal path, #35 Codex `.git` probe scope). Results: `docs/experiments/2026-11-12-gui-smoke.md`. Follow-ups noticed there: stray `1` above the diff, Install emphasis on a `corked` verdict.
 3. **Release (decided 2026-11-12):**
    - Apple Developer account: available. Steps: `docs/experiments/2026-11-12-macos-signing.md`. Not run yet.
    - Legal review: planned. Questions: `docs/experiments/2026-11-12-legal-questions.md`.
@@ -51,6 +51,7 @@ Run tests with no `SOMM_DATA_DIR` set. The real data directory `~/Library/Applic
 
 ## Known limits and risks
 
+- Desktop Codex enumeration can probe `.git` above the data dir but cannot read `.agents/skills` there; only matters if a folder above it (for example a git-managed home) is a git repo (#35).
 - Lite runs the project's test command with host permissions; a modified test script can launch subprocesses (spec §10; README).
 - Secret masking is best-effort; use a budget-limited throwaway key for Isolated (spec §10; README). Node-side masking is per event.
 - Desktop read scope for a non-default `CODEX_HOME` is missing (README).
