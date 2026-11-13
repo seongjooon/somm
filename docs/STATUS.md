@@ -38,16 +38,16 @@ Run tests with no `SOMM_DATA_DIR` set. The real data directory `~/Library/Applic
 ## Next, in order
 
 1. **Manual Tauri check:** passed, including item 8 (closed by the GUI smoke on 2026-11-13).
-2. **Real-subscription GUI smoke:** passed 2026-11-13 for Claude and Codex after two fixes (#34 task proposal path, #35 Codex `.git` probe scope). Results: `docs/experiments/2026-11-12-gui-smoke.md`. Follow-ups noticed there: stray `1` above the diff, Install emphasis on a `corked` verdict.
+2. **Real-subscription GUI smoke:** passed 2026-11-13 for Claude and Codex after two fixes (#34 task proposal path, #35 Codex `.git` probe scope). Results: `docs/experiments/2026-11-12-gui-smoke.md`. Its two UI follow-ups (diff run label, Install emphasis on `corked`) are in #37.
 3. **Release (decided 2026-11-12):**
    - Apple Developer account: available. Steps: `docs/experiments/2026-11-12-macos-signing.md`. Not run yet.
    - Legal review: planned. Questions: `docs/experiments/2026-11-12-legal-questions.md`.
    - npm name `somm`: still 404 on 2026-11-12. Re-check right before any `npm publish`; publishing is public and not reversible.
-   - Public release timing: open.
+   - Public release timing (decided 2026-11-13): private beta (DMG to a few people) once signing and notarization work; public release after the legal review.
 4. **Post-MVP outlines:** T16 Docker Secure sandbox, T17 share card, T18 crawler/public release (plan T16–T18).
 5. **Follow-up (deferred, decided 2026-11-09):** Node canary creation uses path checks (`lstat` per component, root containment, `O_CREAT|O_EXCL|O_NOFOLLOW`) and accepts a small check-then-use race; the desktop Rust command is handle-based (`openat` + `O_NOFOLLOW`). Later: give Node the same handle-based protection (needs a native module or new dependency, so decide first). Code: `packages/core/src/node/canaries.ts` (#26).
 6. **Backlog from the 2026-11-09 manual check:** done (#28, #29). PATH resolution itself is unchanged: keep agent CLIs on the login-shell PATH (`~/.zprofile`).
-7. **Track 2 (after MVP release):** Pocket Somm. Decided 2026-11-12: no server, benchmarks in GitHub Actions (spec §11); server-based parts need redesign. Draft: `docs/superpowers/specs/2026-11-09-track2-pocket-somm-design.md`.
+7. **Track 2 (after MVP release):** Pocket Somm. Decided 2026-11-12: no server, benchmarks in GitHub Actions (spec §11); server-based parts need redesign. Decided 2026-11-13: mobile stack after P0 validation; PRD amended only after the MVP release. Draft: `docs/superpowers/specs/2026-11-09-track2-pocket-somm-design.md`.
 
 ## Known limits and risks
 
