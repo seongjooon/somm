@@ -39,6 +39,21 @@
       "identifier": "fs:allow-lstat",
       "allow": [
         {
+          "path": "$DATA/.git"
+        },
+        {
+          "path": "$HOME/Library/.git"
+        },
+        {
+          "path": "$HOME/.git"
+        },
+        {
+          "path": "/*/.git"
+        },
+        {
+          "path": "/.git"
+        },
+        {
           "path": "$HOME/.codex/skills"
         },
         {

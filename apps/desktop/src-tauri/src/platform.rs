@@ -164,6 +164,17 @@ mod tests {
         assert!(!scope.is_allowed("/tmp/outside/README.md"));
     }
     #[test]
+    fn lstat_allows_git_probes_above_the_data_dir() {
+        // Codex skill enumeration walks up from run dirs under $DATA looking for .git.
+        let capability: serde_json::Value = serde_json::from_str(include_str!("../capabilities/default.json")).unwrap();
+        let allow: Vec<&str> = capability["permissions"].as_array().unwrap().iter()
+            .find(|entry| entry["identifier"] == "fs:allow-lstat").unwrap()["allow"].as_array().unwrap()
+            .iter().map(|entry| entry["path"].as_str().unwrap()).collect();
+        for path in ["$DATA/.git", "$HOME/Library/.git", "$HOME/.git", "/*/.git", "/.git"] {
+            assert!(allow.contains(&path), "{path}");
+        }
+    }
+    #[test]
     fn sensitive_paths_are_denied_without_blocking_cache_markers() {
         for path in [".env", ".env.example", ".ssh/id", ".aws/config", ".gnupg/key", ".netrc", ".npmrc", ".pypirc", ".git/config", ".git/hooks/pre-commit", ".config/gh/hosts.yml"] {
             assert!(super::sensitive_path(std::path::Path::new(&format!("/tmp/project/{path}"))), "{path}");
