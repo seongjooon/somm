@@ -47,7 +47,7 @@ export async function proposeTasks(p: Platform, deps: { agent: AgentAdapter; san
       }
     }
     await visit(prepared.base);
-    const out = await invokeAgent(p, deps.agent, { cwd: prepared.base, tmpHome: `${prepared.base}/../home-proposal`, prompt: proposeTasksPrompt(req.skill, tree), opts: req.opts, model: req.model, signal: req.signal, scrub: makeScrub(req.opts.apiKey) });
+    const out = await invokeAgent(p, deps.agent, { cwd: prepared.base, tmpHome: `${prepared.base.slice(0, prepared.base.lastIndexOf('/'))}/home-proposal`, prompt: proposeTasksPrompt(req.skill, tree), opts: req.opts, model: req.model, signal: req.signal, scrub: makeScrub(req.opts.apiKey) });
     if (out.auth) throw new Error('Agent authentication failed. Log in and retry.');
     if (out.budget) throw new Error('Agent budget exceeded while proposing tasks.');
     if (out.timedOut || out.code !== 0) throw new Error('Agent could not propose tasks.');
