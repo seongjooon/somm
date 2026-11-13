@@ -64,3 +64,16 @@ test('isolated proposal requires a key and installation but not subscription log
   e.agent.detect = async () => ({ installed: true, loggedIn: false });
   await expect(proposeTasks(e.p, e, { ...req, opts: { ...req.opts, auth: 'subscription' } })).rejects.toThrow(); expect(e.calls).toHaveLength(0);
 });
+test('never passes a path with a .. segment to the platform fs (Tauri rejects them)', async () => {
+  const e = await makeEnv({ script: async () => ({ lines: [line({ kind: 'text', text: '["one","two","three"]' })], code: 0 }) }); root = e.root;
+  const fs = e.p.fs as unknown as Record<string, unknown>;
+  e.p.fs = new Proxy(fs, { get: (target, key) => {
+    const value = target[key as string];
+    return typeof value !== 'function' ? value : (...args: unknown[]) => {
+      if (args.some(a => typeof a === 'string' && a.split('/').includes('..'))) throw new Error(`cannot traverse directory: ${args[0]}`);
+      return (value as (...a: unknown[]) => unknown).apply(target, args);
+    };
+  } }) as unknown as typeof e.p.fs;
+  const tasks = await proposeTasks(e.p, e, { runId: 'proposal', projectDir: root, skill: { name: 'tdd', description: 'test' }, opts: { agent: 'claude', auth: 'subscription', runs: 'quick' }, signal: new AbortController().signal });
+  expect(tasks).toEqual(['one', 'two', 'three']);
+});
