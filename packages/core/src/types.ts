@@ -5,11 +5,13 @@ export type AuthMode = 'subscription' | 'isolated';
 export type RunsMode = 'quick' | 'thorough';
 export type SourceId = 'sample' | 'github' | 'claude-official' | 'codex-official';
 export interface Snapshot { date: string; value: number } // YYYY-MM-DD
+export type PublicTraits = { hasScripts: boolean; hasHooks: boolean; hasMcp: boolean };
 export interface SkillMeta {
   id: string; name: string; description: string; source: SourceId;
   repoUrl: string; ref: string; path: string; isFork?: boolean;
   stars?: number; installs?: number; snapshots: Snapshot[];
   agents: AgentId[]; license?: string; category?: string; contentHash?: string;
+  grade?: Exclude<Grade, 'F'>; traits?: PublicTraits; pushedAt?: string;
 }
 export function skillText(contents: string | Uint8Array): string | undefined {
   if (typeof contents === 'string') return contents;

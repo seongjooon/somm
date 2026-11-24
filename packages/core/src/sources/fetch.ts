@@ -37,7 +37,7 @@ export async function readLocalSkill(dir: string, p: Platform): Promise<{ name: 
   const name: unknown = frontmatter ? parse(frontmatter[1])?.name : undefined;
   return { name: typeof name === 'string' && name.trim() ? name.trim() : dir.replace(/\/+$/, '').split('/').pop()!, files };
 }
-function validate(meta: SkillMeta, allowLocal = false) {
+export function validate(meta: SkillMeta, allowLocal = false) {
   if (meta.path !== '.' && (!meta.path || meta.path.startsWith('/') || /[\\\0\r\n]/.test(meta.path)
     || meta.path.split('/').some(s => !s || s === '.' || s === '..' || s === '.git' || s.startsWith('-')))) {
     throw new Error('Invalid repository skill path');
