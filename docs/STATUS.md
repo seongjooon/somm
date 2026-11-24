@@ -41,6 +41,7 @@ Run tests with no `SOMM_DATA_DIR` set. The real data directory `~/Library/Applic
 2. **Real-subscription GUI smoke:** passed 2026-11-13 for Claude and Codex after two fixes (#34 task proposal path, #35 Codex `.git` probe scope). Results: `docs/experiments/2026-11-12-gui-smoke.md`. Its two UI follow-ups (diff run label, Install emphasis on `corked`) are in #37.
 3. **Release (decided 2026-11-12):**
    - Signing and notarization: done 2026-11-24. The 0.1.0 aarch64 DMG is signed, notarized and stapled; procedure and checksum in `docs/experiments/2026-11-12-macos-signing.md`. Next: send it to private beta testers.
+   - Private beta and social posts (decided 2026-11-24): recruit by DM or form, send the DMG only to chosen testers, no public download link before the legal review. Kit: `docs/beta/beta-guide.md`, `docs/beta/sns-drafts.md`. Design pass starts after beta feedback.
    - Legal review: planned. Questions: `docs/experiments/2026-11-12-legal-questions.md`.
    - npm name `somm`: still 404 on 2026-11-12. Re-check right before any `npm publish`; publishing is public and not reversible.
    - Public release timing (decided 2026-11-13): private beta (DMG to a few people) once signing and notarization work; public release after the legal review.
