@@ -1,6 +1,6 @@
 # somm status
 
-_Updated 2026-11-13. Plan: `docs/superpowers/plans/2026-11-06-somm-mvp.md`; spec: `docs/superpowers/specs/2026-11-06-somm-mvp-design.md`._
+_Updated 2026-11-24. Plan: `docs/superpowers/plans/2026-11-06-somm-mvp.md`; spec: `docs/superpowers/specs/2026-11-06-somm-mvp-design.md`._
 
 Implementation T1–T15 is merged and code-complete. The manual Tauri check passed on 2026-11-09 (#26 branch). Remaining work needs the user: the real-subscription GUI smoke and the release decisions below.
 
@@ -40,7 +40,7 @@ Run tests with no `SOMM_DATA_DIR` set. The real data directory `~/Library/Applic
 1. **Manual Tauri check:** passed, including item 8 (closed by the GUI smoke on 2026-11-13).
 2. **Real-subscription GUI smoke:** passed 2026-11-13 for Claude and Codex after two fixes (#34 task proposal path, #35 Codex `.git` probe scope). Results: `docs/experiments/2026-11-12-gui-smoke.md`. Its two UI follow-ups (diff run label, Install emphasis on `corked`) are in #37.
 3. **Release (decided 2026-11-12):**
-   - Apple Developer account: available. Steps: `docs/experiments/2026-11-12-macos-signing.md`. Not run yet.
+   - Signing and notarization: done 2026-11-24. The 0.1.0 aarch64 DMG is signed, notarized and stapled; procedure and checksum in `docs/experiments/2026-11-12-macos-signing.md`. Next: send it to private beta testers.
    - Legal review: planned. Questions: `docs/experiments/2026-11-12-legal-questions.md`.
    - npm name `somm`: still 404 on 2026-11-12. Re-check right before any `npm publish`; publishing is public and not reversible.
    - Public release timing (decided 2026-11-13): private beta (DMG to a few people) once signing and notarization work; public release after the legal review.
