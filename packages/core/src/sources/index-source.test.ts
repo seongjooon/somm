@@ -19,3 +19,10 @@ test('keeps grade and public traits, strips unknown trait keys', () => {
   expect(parseIndex(input([{ ...ok, grade: 'A', traits: { hasScripts: true, hasHooks: false, hasMcp: false, commands: ['rm'] } }]))[0]).toMatchObject({ grade: 'A', traits: { hasScripts: true, hasHooks: false, hasMcp: false } });
   expect(parseIndex(input([{ ...ok, traits: { hasScripts: true, hasHooks: false, hasMcp: false, commands: ['rm'] } }]))[0].traits).not.toHaveProperty('commands');
 });
+test('drops invalid grade and traits but keeps the entry', () => {
+  const result = parseIndex(input([
+    { ...ok, grade: 'F', traits: 'str' },
+    { ...ok, grade: 'X', traits: { hasScripts: 'yes' } },
+  ]));
+  expect(result).toEqual([ok, ok]);
+});

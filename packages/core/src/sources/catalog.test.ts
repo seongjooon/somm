@@ -32,3 +32,16 @@ test('remote list is returned even when the cache write fails', async () => {
   p.db = { ...p.db, async execute() { throw new Error('write failed'); } };
   expect(await loadCatalog(p, { fetchText: async () => data('a') })).toEqual({ skills: [skill('a')], origin: 'remote' });
 });
+test('corrupt cache row is skipped', async () => {
+  const { p, db } = await makeEnv();
+  await db.execute('INSERT INTO skills_cache (id, json, fetched_at) VALUES (?, ?, ?)', ['bad', '{', 'now']);
+  await db.execute('INSERT INTO skills_cache (id, json, fetched_at) VALUES (?, ?, ?)', ['good', JSON.stringify(skill('good')), 'now']);
+  expect(await loadCatalog(p, { fetchText: fail })).toEqual({ skills: [skill('good')], origin: 'cache' });
+});
+test('cache read failure falls back to sample', async () => {
+  const { p } = await makeEnv();
+  p.db = { ...p.db, async select() { throw new Error('read failed'); } };
+  const result = await loadCatalog(p, { fetchText: fail });
+  expect(result.origin).toBe('sample');
+  expect(result.skills).toHaveLength(20);
+});

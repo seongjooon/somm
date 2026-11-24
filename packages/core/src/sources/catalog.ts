@@ -1,13 +1,13 @@
 import type { Platform } from '../platform';
 import type { SkillMeta } from '../types';
 import { createSampleSource } from './index';
-import { DEFAULT_INDEX_URL, parseIndex } from './index-source';
+import { DEFAULT_INDEX_URL, INDEX_TIMEOUT_MS, parseIndex } from './index-source';
 
 export interface CatalogOptions { url?: string; fetchText?: (url: string) => Promise<string> }
 export async function loadCatalog(p: Platform, options: CatalogOptions = {}): Promise<{ skills: SkillMeta[]; origin: 'remote' | 'cache' | 'sample' }> {
   try {
     const fetchText = options.fetchText ?? (async (url: string) => {
-      const response = await fetch(url);
+      const response = await fetch(url, { signal: AbortSignal.timeout(INDEX_TIMEOUT_MS) });
       if (!response.ok) throw new Error(`Index request failed: ${response.status}`);
       return response.text();
     });
@@ -21,8 +21,14 @@ export async function loadCatalog(p: Platform, options: CatalogOptions = {}): Pr
     } catch { /* The fetched list remains usable without a cache update. */ }
     return { skills, origin: 'remote' };
   } catch {
-    const rows = await p.db.select<{ json: string }>('SELECT json FROM skills_cache');
-    if (rows.length) return { skills: parseIndex(JSON.stringify({ skills: rows.map(row => JSON.parse(row.json)) })), origin: 'cache' };
+    try {
+      const rows = await p.db.select<{ json: string }>('SELECT json FROM skills_cache');
+      const entries = rows.flatMap(row => {
+        try { return [JSON.parse(row.json)]; } catch { return []; }
+      });
+      const skills = parseIndex(JSON.stringify({ skills: entries }));
+      if (skills.length) return { skills, origin: 'cache' };
+    } catch { /* An unreadable cache falls back to the sample. */ }
     return { skills: await createSampleSource().fetchIndex(), origin: 'sample' };
   }
 }

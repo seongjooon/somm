@@ -2,6 +2,7 @@ import type { SkillMeta } from '../types';
 import { validate } from './fetch';
 
 export const DEFAULT_INDEX_URL = 'https://seongjooon.github.io/somm-index/index.json';
+export const INDEX_TIMEOUT_MS = 15_000;
 export const INDEX_BYTE_LIMIT = 20 * 1024 * 1024;
 export function validSkillMeta(meta: SkillMeta): boolean {
   try {
@@ -15,8 +16,12 @@ export function parseIndex(text: string): SkillMeta[] {
   const index = JSON.parse(text);
   if (!index || typeof index !== 'object' || !Array.isArray(index.skills) || (index.version !== undefined && index.version !== 1)) throw new Error('Invalid index');
   return index.skills.filter(validSkillMeta).map((meta: SkillMeta) => {
-    if (!meta.traits) return meta;
-    const { hasScripts, hasHooks, hasMcp } = meta.traits;
-    return { ...meta, traits: { hasScripts, hasHooks, hasMcp } };
+    const { grade, traits, ...fields } = meta;
+    const rest: SkillMeta = fields;
+    if (grade && ['A', 'B', 'C', 'D'].includes(grade)) rest.grade = grade;
+    if (traits && typeof traits === 'object' && typeof traits.hasScripts === 'boolean' && typeof traits.hasHooks === 'boolean' && typeof traits.hasMcp === 'boolean') {
+      rest.traits = { hasScripts: traits.hasScripts, hasHooks: traits.hasHooks, hasMcp: traits.hasMcp };
+    }
+    return rest;
   });
 }
