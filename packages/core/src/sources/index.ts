@@ -7,3 +7,5 @@ export function createSampleSource(): SourceAdapter {
 }
 export * from './rank';
 export { fetchSkillFiles, readLocalSkill } from './fetch';
+export * from './index-source';
+export * from './catalog';
