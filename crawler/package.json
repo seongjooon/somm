@@ -1,0 +1,1 @@
+{"name":"@somm/crawler","private":true,"type":"module","scripts":{"test":"vitest run src","check":"tsc --noEmit","build":"esbuild src/main.ts --bundle --platform=node --format=esm --outfile=dist/crawl.js --banner:js=\"import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);\""},"dependencies":{"@somm/core":"workspace:*"}}
