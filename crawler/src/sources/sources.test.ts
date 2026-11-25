@@ -28,6 +28,33 @@ describe('sources', () => {
     const result = await communityCandidates(fake(['skills/a/SKILL.md', '.openclaw/skills/a/SKILL.md']), '2026-11-25');
     expect(result.map(x => x.path)).toEqual(['skills/a', '.openclaw/skills/a']);
   });
+  it('community skips a failing repo and keeps the rest', async () => {
+    const base = fake(['SKILL.md'], [repos[0], { ...repos[0], name: 'bad' }]);
+    const gh: GitHubClient = { async getJson<T>(path: string): Promise<T> {
+      if (path.startsWith('/search/code')) return { items: [{ repository: { full_name: 'test/missing' } }] } as T;
+      if (path === '/repos/test/missing' || path.includes('/repos/test/bad/git/trees/')) throw new Error('unavailable');
+      return base.getJson<T>(path);
+    } };
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const result = await communityCandidates(gh, '2026-11-25');
+      expect(result.map(x => x.repo)).toEqual(['good']);
+      expect(warn).toHaveBeenCalledTimes(2);
+      expect(warn.mock.calls.map(call => String(call[0]))).toEqual(expect.arrayContaining([expect.stringContaining('test/missing'), expect.stringContaining('test/bad')]));
+    } finally { warn.mockRestore(); }
+  });
+  it('incomplete search results are used, not fatal', async () => {
+    const base = fake(['SKILL.md'], [repos[0]]);
+    const gh: GitHubClient = { async getJson<T>(path: string): Promise<T> {
+      if (path.startsWith('/search/repositories')) return { items: [repos[0]], incomplete_results: true } as T;
+      return base.getJson<T>(path);
+    } };
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect((await communityCandidates(gh, '2026-11-25')).map(x => x.repo)).toEqual(['good']);
+      expect(warn).toHaveBeenCalled();
+    } finally { warn.mockRestore(); }
+  });
   it('root SKILL.md uses dot path', async () => {
     const result = await communityCandidates(fake(['SKILL.md']), '2026-11-25');
     expect(result[0].path).toBe('.');
