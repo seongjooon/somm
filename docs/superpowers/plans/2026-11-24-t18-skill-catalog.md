@@ -15,7 +15,7 @@
 - 커뮤니티 포함 기준: 스타 ≥ 50, archived 아님, 포크 아님, `pushed_at`이 12개월 이내. 라이선스 없음도 포함(`license` 생략).
 - 공식 id는 샘플 규칙 유지: `anthropics/<폴더명>`, `openai/<폴더명>`. 커뮤니티 id: `<owner>/<repo>/<path>`.
 - `ref`는 크롤링 시점 커밋 SHA(40자 hex).
-- 부분 실패: 스킬 단위 실패는 전날 항목을 이어 쓰고 7일 연속 실패면 제외. 출처 전체 실패 또는 총수가 전날 대비 20% 초과 감소면 배포 중단(종료 코드 1).
+- 부분 실패: 오늘 크롤링에서 빠진 스킬(받기·검사 실패, 저장소 실패로 건너뜀, 검색 누락 모두)은 전날 항목을 이어 쓰고, 7일 연속 빠지면 제외. 공식 출처 실패 또는 총수가 전날 대비 20% 초과 감소면 배포 중단(종료 코드 1). 커뮤니티 저장소 하나의 실패는 출처 실패가 아니다(태스크 2에서 건너뛰고 경고만 남긴다).
 - 스냅샷 보존 400일. 커뮤니티 값은 스타 수.
 - 기본 목록 주소: `https://seongjooon.github.io/somm-index/index.json` (`DEFAULT_INDEX_URL`). 받은 본문 상한 20 MiB.
 - 데스크톱은 목록 주소 한 곳만 허용한다. 다른 외부 주소를 열지 않는다.
@@ -114,14 +114,14 @@
   - `export function skillId(c: Candidate): string` — 공식: `anthropics/<path 마지막 폴더>`, `openai/<path 마지막 폴더>`; 커뮤니티: `<owner>/<repo>/<path>`. 공식 id가 겹치면(같은 폴더명) 크롤러가 실패로 끝내고 로그에 남긴다.
   - `export function collapseCopies(items: SkillMeta[]): SkillMeta[]` — 같은 저장소 안에서 `contentHash`가 같은 항목은 하나만 남긴다. 점으로 시작하는 폴더가 없는 경로를 우선, 그다음 짧은 경로.
   - `export async function enrich(p: Platform, c: Candidate): Promise<SkillMeta>` — `repoUrl: https://github.com/<owner>/<repo>.git`, `ref: c.commit`, 파일을 받아 `scanSkill`(name은 SKILL.md frontmatter `name`, 없으면 폴더명), `grade`, `traits`(commands 제외), `contentHash`, `agents`(공식은 출처대로, 커뮤니티는 `agents/openai.yaml`이 있으면 `['claude','codex']`, 없으면 `['claude']`), `description`(frontmatter `description`, 없으면 저장소 설명), `stars`, `license`, `pushedAt`, `snapshots: []`.
-  - `export interface MergeInput { today: string; previous: SkillMeta[]; fresh: SkillMeta[]; failed: string[]; failureDays: Record<string, number>; sourcesFailed: string[] }`
-  - `export function merge(input: MergeInput): { skills: SkillMeta[]; failureDays: Record<string, number>; publish: boolean; reason?: string }` — 규칙은 전역 제약 그대로: 실패 항목은 전날 것을 이어 쓰고 `failureDays[id] += 1`, 7 이상이면 제외; 성공 항목은 0으로 리셋. 스냅샷은 전날 `snapshots`에 `{date: today, value: stars}`를 붙이고(같은 날짜면 교체) 400일보다 오래된 것은 버린다. `sourcesFailed`가 비어 있지 않거나 `skills.length < previous.length * 0.8`이면 `publish:false`.
+  - `export interface MergeInput { today: string; previous: SkillMeta[]; fresh: SkillMeta[]; failureDays: Record<string, number>; sourcesFailed: string[] }`
+  - `export function merge(input: MergeInput): { skills: SkillMeta[]; failureDays: Record<string, number>; publish: boolean; reason?: string }` — 규칙은 전역 제약 그대로: `previous`에 있고 `fresh`에 없는 항목은 이유와 상관없이 전날 것을 이어 쓰고 `failureDays[id] += 1`, 7 이상이면 제외; `fresh`에 있는 항목은 0으로 리셋. `enrich`가 실패한 스킬은 `fresh`에 넣지 않는다. 스냅샷은 전날 `snapshots`에 `{date: today, value: stars}`를 붙이고(같은 날짜면 교체) 400일보다 오래된 것은 버린다. `sourcesFailed`가 비어 있지 않거나 `skills.length < previous.length * 0.8`이면 `publish:false`.
   - `crawler/src/main.ts`: 전날 `index.json`(`DEFAULT_INDEX_URL`, 없으면 빈 목록)과 `failures.json`(같은 Pages 경로)을 받아 → 후보 수집 → `enrich`(동시 4개) → `merge` → `out/index.json`(`{version:1, generatedAt, skills}`), `out/failures.json`, `out/snapshots/<today>.json` 작성. `publish:false`면 이유를 출력하고 종료 코드 1. `enrich` 뒤 `collapseCopies`를 거친다. 결과는 `parseIndex`로 다시 검증한 뒤 쓴다.
 - [ ] **Step 1: 실패하는 테스트 작성**
   - `skillId keeps sample ids for official skills`: `{source:'claude-official', path:'skills/xlsx'}` → `anthropics/xlsx`; 커뮤니티 `dietrichgebert/ponytail/skills/ponytail`.
   - `enrich pins ref and omits commands` (로컬 git 저장소 fixture를 `allowLocal`로; `fetch.test.ts`의 방식 참고): `ref`가 SHA, `traits`에 `commands` 키 없음, `grade` 존재.
   - `collapseCopies keeps one of same-content copies`: `skills/a`와 `.openclaw/skills/a`가 같은 hash → `skills/a`만 남음. 다른 저장소의 같은 hash는 둘 다 남음(앱의 `dedupe`가 처리).
-  - `merge carries forward failed skills and drops after 7 days`.
+  - `merge carries forward missing skills and drops after 7 days` (enrich 실패, 저장소 건너뜀, 검색 누락을 같은 규칙으로).
   - `merge appends snapshot and trims to 400 days`.
   - `merge blocks publish on source failure or >20% drop`: 이전 100개, 신규 79개 → `publish:false`; 80개 → `true`.
 - [ ] **Step 2:** `pnpm --filter @somm/crawler test` → FAIL.
