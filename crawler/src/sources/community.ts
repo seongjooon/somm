@@ -4,7 +4,7 @@ import { repositoryCandidates } from './official';
 
 export const COMMUNITY_TOPICS = ['agent-skills', 'claude-skills', 'codex-skills', 'claude-code-skills'];
 
-export async function communityCandidates(gh: GitHubClient, today: string): Promise<Candidate[]> {
+export async function communityCandidates(gh: GitHubClient, today: string, maxRepos = Infinity): Promise<Candidate[]> {
   const cutoff = new Date(`${today}T00:00:00Z`);
   cutoff.setUTCDate(cutoff.getUTCDate() - 365);
   const date = cutoff.toISOString().slice(0, 10);
@@ -25,6 +25,7 @@ export async function communityCandidates(gh: GitHubClient, today: string): Prom
   }
   const code = await search<{ repository: { full_name: string } }>(`/search/code?q=filename:SKILL.md`);
   for (const item of code) {
+    if (repos.size >= maxRepos) break;
     const name = item.repository.full_name;
     if (!repos.has(name.toLowerCase())) {
       try { add(await gh.getJson<Repository>(`/repos/${name}`)); }
@@ -32,8 +33,10 @@ export async function communityCandidates(gh: GitHubClient, today: string): Prom
     }
   }
   const result: Candidate[] = [];
+  let checked = 0;
   for (const [name, repo] of repos) {
     if (name === 'anthropics/skills' || name === 'openai/skills' || repo.stargazers_count < 50 || repo.archived || repo.fork || !repo.pushed_at || repo.pushed_at < date) continue;
+    if (checked++ >= maxRepos) break;
     try { result.push(...await repositoryCandidates(gh, repo, 'github')); }
     catch (error) { console.warn(`Skipping ${name}: ${error instanceof Error ? error.message : String(error)}`); }
   }
