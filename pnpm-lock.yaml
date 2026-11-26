@@ -70,6 +70,12 @@ importers:
         specifier: ^7.0.0
         version: 7.3.7(@types/node@22.20.5)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1)
 
+  crawler:
+    dependencies:
+      '@somm/core':
+        specifier: workspace:*
+        version: link:../packages/core
+
   packages/core:
     dependencies:
       yaml:
