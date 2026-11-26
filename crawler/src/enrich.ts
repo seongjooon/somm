@@ -6,6 +6,12 @@ const { parse } = requireCore('yaml') as { parse(text: string): unknown };
 export function skillId(c: Candidate): string {
   return c.source === 'github' ? `${c.owner}/${c.repo}/${c.path}` : `${c.source === 'claude-official' ? 'anthropics' : 'openai'}/${c.path.split('/').pop()}`;
 }
+export function officialIds(items: Candidate[]): string[] {
+  const counts = new Map<string, number>();
+  for (const item of items) counts.set(skillId(item), (counts.get(skillId(item)) ?? 0) + 1);
+  for (const [id, count] of counts) if (count > 1) console.warn(`Official id collision: ${id}; using full paths`);
+  return items.map(item => (counts.get(skillId(item)) ?? 0) > 1 ? `${item.owner}/${item.repo}/${item.path}` : skillId(item));
+}
 export function collapseCopies(items: SkillMeta[]): SkillMeta[] {
   const chosen = new Map<string, SkillMeta>();
   const rank = (s: SkillMeta) => [Number(s.path.split('/').some(part => part.startsWith('.'))), s.path.length];

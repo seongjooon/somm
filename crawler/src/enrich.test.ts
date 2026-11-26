@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { createNodePlatform } from '@somm/core/node';
 import type { SkillMeta } from '@somm/core';
-import { skillId, collapseCopies, enrich } from './enrich';
+import { skillId, collapseCopies, enrich, officialIds } from './enrich';
 import type { Candidate } from './types';
 const candidate: Candidate = { source: 'claude-official', owner: 'anthropics', repo: 'skills', path: 'skills/xlsx', commit: 'a'.repeat(40), stars: 1, pushedAt: '2026-01-01' };
 test('skillId keeps sample ids for official skills', () => {
@@ -31,4 +31,10 @@ test('enrich pins ref and omits commands', async () => {
     expect(result.ref).toBe(sha); expect(result.name).toBe('Fixture'); expect(result.description).toBe('Test skill');
     expect(result.grade).toBeDefined(); expect(result.traits).not.toHaveProperty('commands');
   } finally { if (old === undefined) delete process.env.SOMM_DATA_DIR; else process.env.SOMM_DATA_DIR = old; await rm(root, { recursive: true, force: true }); }
+});
+test('colliding official ids fall back to full path ids', () => {
+  const a = { ...candidate, source: 'codex-official' as const, owner: 'openai', path: 'skills/.curated/openai-docs' };
+  const b = { ...a, path: 'skills/.system/openai-docs' };
+  const c = { ...a, path: 'skills/other' };
+  expect(officialIds([a, b, c])).toEqual(['openai/skills/skills/.curated/openai-docs', 'openai/skills/skills/.system/openai-docs', 'openai/other']);
 });

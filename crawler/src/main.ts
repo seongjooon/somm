@@ -6,7 +6,7 @@ import { DEFAULT_INDEX_URL, parseIndex, type SkillMeta } from '@somm/core';
 import { createGitHubClient } from './github';
 import { officialCandidates } from './sources/official';
 import { communityCandidates } from './sources/community';
-import { collapseCopies, enrich, skillId } from './enrich';
+import { collapseCopies, enrich, skillId, officialIds } from './enrich';
 import { merge } from './merge';
 import type { Candidate } from './types';
 
@@ -38,8 +38,8 @@ async function main() {
   const sourcesFailed: string[] = [];
   let official: Candidate[] = [], community: Candidate[] = [];
   try { official = await officialCandidates(gh); } catch (error) { sourcesFailed.push('official'); console.warn('Official source failed:', error); }
-  const ids = new Set<string>();
-  for (const c of official) { const id = skillId(c); if (ids.has(id)) throw new Error(`Duplicate official id: ${id}`); ids.add(id); }
+  const officialIdsResult = officialIds(official);
+  const resolvedIds = new Map(official.map((c, i) => [c, officialIdsResult[i]]));
   try { community = await communityCandidates(gh, today, maxRepos); } catch (error) { console.warn('Community discovery failed:', error); }
   const candidates = [...official, ...community];
   const fresh: SkillMeta[] = [];
@@ -47,7 +47,7 @@ async function main() {
   await Promise.all(Array.from({ length: 4 }, async () => {
     while (next < candidates.length) {
       const c = candidates[next++];
-      try { fresh.push(await enrich(platform, c)); } catch (error) { console.warn(`Skipping ${skillId(c)}:`, error); }
+      try { const item = await enrich(platform, c); item.id = resolvedIds.get(c) ?? item.id; fresh.push(item); } catch (error) { console.warn(`Skipping ${skillId(c)}:`, error); }
     }
   }));
   const result = merge({ today, previous, fresh: collapseCopies(fresh), failureDays, sourcesFailed });
